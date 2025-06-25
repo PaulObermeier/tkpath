@@ -727,7 +727,7 @@ PimageToPdf(Tcl_Interp *interp, Tk_PathCanvas canvas, Tk_PathItem *itemPtr,
 #if ZLIB_SUPPORT
 	if (zLen > 0) {
 	    Tcl_AppendPrintfToObj(obj, "/Filter /FlateDecode\n"
-				  "/Length %ld\n>>\nstream\n", zLen);
+				  "/Length %ld\n>>\nstream\n", (long int) zLen);
 	} else
 #endif
 	{
@@ -848,7 +848,7 @@ PimageToPdf(Tcl_Interp *interp, Tk_PathCanvas canvas, Tk_PathItem *itemPtr,
 #if ZLIB_SUPPORT
 	if (zLen > 0) {
 	    Tcl_AppendPrintfToObj(obj, "/Filter /FlateDecode\n"
-				  "/Length %ld\n>>\nstream\n", zLen);
+				  "/Length %ld\n>>\nstream\n", (long int) zLen);
 	} else
 #endif
 	{
