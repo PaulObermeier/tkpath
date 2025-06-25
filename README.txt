@@ -1,7 +1,6 @@
 NOTE: This is a fork of Mats Bengtsson's original tkpath extension
 for Tcl/Tk 8, with modifications by Steve Shaw (sm-shaw at github) and
-further fixes for Tcl/Tk 9. Tcl/Tk 8 compatibility is not guaranteed.
-Original README is below.
+further fixes for Tcl/Tk 9.
 
                            README for tkpath
                            _________________
