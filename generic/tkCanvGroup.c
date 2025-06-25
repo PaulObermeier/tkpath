@@ -124,7 +124,7 @@ Tk_PathItemType tkpGroupType = {
 static int
 CreateGroup(Tcl_Interp *interp,
 	Tk_PathCanvas canvas, struct Tk_PathItem *itemPtr,
-        int objc, Tcl_Obj *const objv[])
+        Tcl_Size objc, Tcl_Obj *const objv[])
 {
     GroupItem *groupPtr = (GroupItem *) itemPtr;
     Tk_PathItemEx *itemExPtr = &groupPtr->headerEx;

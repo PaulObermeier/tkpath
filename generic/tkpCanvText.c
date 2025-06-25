@@ -271,7 +271,7 @@ CreateText(
     Tk_PathCanvas canvas,	/* Canvas to hold new item. */
     Tk_PathItem *itemPtr,	/* Record to hold new item; header has been
 				 * initialized by caller. */
-    int objc,			/* Number of arguments in objv. */
+    Tcl_Size objc,		/* Number of arguments in objv. */
     Tcl_Obj *const objv[])	/* Arguments describing rectangle. */
 {
     TextItem *textPtr = (TextItem *) itemPtr;

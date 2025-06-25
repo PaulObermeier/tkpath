@@ -7,24 +7,25 @@
 # All rights reserved.
 #
 
+source [file join [file dirname [info script]] errorMessages.tcl]
 
 set font "-adobe-times-medium-r-normal--*-200-*-*-*-*-*-*"
 set ay [font metrics $font -linespace]
 set ax [font measure $font 0]
 
 set i 1
-foreach test {
-    {-anchor nw nw xyz {bad anchor "xyz": must be n, ne, e, se, s, sw, w, nw, or center}}
-    {-fill #ff0000 #ff0000 xyz {unknown color name "xyz"}}
-    {-fill {} {} {} {}}
-    {-font {Times 40} {Times 40} {} {font "" doesn't exist}}
-    {-justify left left xyz {bad justification "xyz": must be left, right, or center}}
-    {-stipple gray50 gray50 xyz {bitmap "xyz" not defined}}
-    {-tags {test a b c} {test a b c} {} {}}
-    {-text xyz xyz {} {}}
-    {-underline 0 0 xyz {bad index "xyz": must be integer?[+-]integer?, end?[+-]integer?, or ""}}
-    {-width 6 6 xyz {expected screen distance but got "xyz"}}
-} {
+foreach test [list \
+    [list -anchor nw nw xyz {bad anchor "xyz": must be n, ne, e, se, s, sw, w, nw, or center}] \
+    [list -fill #ff0000 #ff0000 xyz {unknown color name "xyz"}] \
+    [list -fill {} {} {} {}] \
+    [list -font {Times 40} {Times 40} {} {font "" doesn't exist}] \
+    [list -justify left left xyz {bad justification "xyz": must be left, right, or center}] \
+    [list -stipple gray50 gray50 xyz {bitmap "xyz" not defined}] \
+    [list -tags {test a b c} {test a b c} {} {}] \
+    [list -text xyz xyz {} {}] \
+    [list -underline 0 0 xyz {expected integer but got "xyz"}] \
+    [list -width 6 6 xyz [errMsgBadDistance "xyz"]] \
+] {
     lassign $test name goodValue goodResult badValue badResult
     test canvText-1.$i "configuration options: good value for $name" \
 -setup ::tkp_setup \
@@ -68,14 +69,14 @@ test canvText-2.1 {CreateText procedure: args} \
 
 test canvText-2.2 {CreateText procedure: args} \
 -setup ::tkp_setup \
--result {1 {expected screen distance but got "xyz"}} \
+-result [list 1 [errMsgBadDistance "xyz"]] \
 -body {
     list [catch {.c create text xyz 0} msg] $msg
 }
 
 test canvText-2.3 {CreateText procedure: args} \
 -setup ::tkp_setup \
--result {1 {expected screen distance but got "xyz"}} \
+-result [list 1 [errMsgBadDistance "xyz"]] \
 -body {
     list [catch {.c create text 0 xyz} msg] $msg
 }
@@ -111,7 +112,7 @@ test canvText-3.1 {TextCoords procedure} \
 
 test canvText-3.2 {TextCoords procedure} \
 -setup ::tkp_setup \
--result {1 {expected screen distance but got "xyz"}} \
+-result [list 1 [errMsgBadDistance "xyz"]] \
 -body {
     .c create text 20 20 -tag test
     list [catch {.c coords test xyz 0} msg] $msg
@@ -119,7 +120,7 @@ test canvText-3.2 {TextCoords procedure} \
 
 test canvText-3.3 {TextCoords procedure} \
 -setup ::tkp_setup \
--result {1 {expected screen distance but got "xyz"}} \
+-result [list 1 [errMsgBadDistance "xyz"]] \
 -body {
     .c create text 20 20 -tag test
     list [catch {.c coords test 0 xyz} msg] $msg

@@ -17,7 +17,7 @@ dnl	to configure the system for the local environment.
 # so you can encode the package version directly into the source files.
 #-----------------------------------------------------------------------
 
-AC_INIT([tkpath], [0.4.0])
+AC_INIT([tkpath], [0.4.1])
 
 #--------------------------------------------------------------------
 # Call TEA_INIT as the first TEA_ macro to set up initial vars.
@@ -164,13 +164,9 @@ case ${TK_DEFS} in
 esac
 
 if test "${TEA_PLATFORM}" = "windows" -a "${USE_SDL}" != "yes" ; then
-    AC_PROG_CXX
-    CC=${CXX}
-
     CLEANFILES="pkgIndex.tcl *.lib *.dll *.exp *.ilk *.pdb vc*.pch"
     TEA_ADD_SOURCES([win/tkWinGDIPlusPath.cpp])
     TEA_ADD_LIBS([gdiplus.lib gdi32.lib])
-    SHLIB_LD="$SHLIB_LD -lgdiplus -lgdi32"
     #TEA_ADD_INCLUDES([-I\"$(${CYGPATH} ${srcdir}/win)\"])
 
     ## Check if the compiler accepts -static-libstdc++ (i.e. mingw)...
@@ -194,9 +190,6 @@ else
 	TEA_ADD_INCLUDES([`freetype-config --cflags`])
 	TEA_ADD_LIBS([`freetype-config --libs`])
 	if test "${TEA_PLATFORM}" = "windows" ; then
-	    AC_PROG_CXX
-	    CC=${CXX}
-
 	    CLEANFILES="pkgIndex.tcl *.lib *.dll *.exp *.ilk *.pdb vc*.pch"
 	    ## Check if the compiler accepts -static-libstdc++ (i.e. mingw)...
 	    AC_CACHE_CHECK([if the compiler understands -static-libstdc++],
@@ -215,10 +208,11 @@ else
 	TEA_ADD_CFLAGS([-x objective-c])
 	TEA_ADD_CFLAGS([-DTCL_NO_DEPRECATED])
     else
+	TEA_ADD_INCLUDES([${TK_XINCLUDES}])
 	TEA_ADD_SOURCES([unix/tkUnixCairoPath.c])
 	TEA_ADD_INCLUDES([`freetype-config --cflags`])
-	TEA_ADD_INCLUDES([-I/usr/include/cairo])
-	TEA_ADD_LIBS([-lcairo])
+	TEA_ADD_INCLUDES([`pkg-config cairo --cflags`])
+	TEA_ADD_LIBS([`pkg-config cairo --libs`])
     fi
 fi
 AC_SUBST(CLEANFILES)
@@ -296,6 +290,13 @@ TEA_PROG_TCLSH
 TEA_PROG_WISH
 
 if test "${TEA_PLATFORM}" = "windows" ; then
+    AC_PROG_CXX
+    if test "$GCC" = "yes" ; then
+	SHLIB_LD="${CXX} -shared"
+    fi
+    if test "${USE_SDL}" != "yes" ; then
+	SHLIB_LD="$SHLIB_LD -lgdiplus -lgdi32"
+    fi
   ## If the compiler accepts -static-libstdc++, modify the compiler
   ## and linker options...
   if test $tcl_cv_cc_staticlib = yes; then

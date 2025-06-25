@@ -88,7 +88,6 @@ top_builddir	= .
 
 INSTALL_OPTIONS =
 INSTALL		= $(SHELL) $(srcdir)/tclconfig/install-sh -c ${INSTALL_OPTIONS}
-INSTALL_DATA_DIR = ${INSTALL} -d -m 755
 INSTALL_PROGRAM	= ${INSTALL} -m 755
 INSTALL_DATA	= ${INSTALL} -m 644
 INSTALL_SCRIPT	= ${INSTALL_PROGRAM}
@@ -156,7 +155,7 @@ PKG_CFLAGS	= @PKG_CFLAGS@
 # you do not compile with a similar machine setup as the Tcl core was
 # compiled with.
 #DEFS		= $(TCL_DEFS) @DEFS@ $(PKG_CFLAGS)
-DEFS		= @DEFS@ $(PKG_CFLAGS) -DUSE_PANIC_ON_PHOTO_ALLOC_FAILURE
+DEFS		= @DEFS@ $(PKG_CFLAGS)
 
 CONFIG_CLEAN_FILES = Makefile
 

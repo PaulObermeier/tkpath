@@ -64,7 +64,7 @@ LOCAL_SRC_FILES :=  \
 
 LOCAL_CFLAGS := $(tcl_cflags) $(tk_cflags) \
 	-DPACKAGE_NAME="\"tkpath\"" \
-	-DPACKAGE_VERSION="\"0.3.3\"" \
+	-DPACKAGE_VERSION="\"0.4.0\"" \
 	-O2 -DTKP_NO_POSTSCRIPT=1
 
 LOCAL_SHARED_LIBRARIES := libtcl libtk

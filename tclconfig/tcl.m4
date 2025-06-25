@@ -1151,6 +1151,7 @@ AC_DEFUN([TEA_CONFIG_CFLAGS], [
 	CFLAGS_OPTIMIZE=-O
 	CFLAGS_WARNING=""
     ])
+    CC_OBJNAME="-o \[$]@"
     AC_CHECK_TOOL(AR, ar)
     STLIB_LD='${AR} cr'
     LD_LIBRARY_PATH_VAR="LD_LIBRARY_PATH"
@@ -1355,6 +1356,9 @@ AC_DEFUN([TEA_CONFIG_CFLAGS], [
 		# This essentially turns it all on.
 		LDFLAGS_DEBUG="-debug -debugtype:cv"
 		LDFLAGS_OPTIMIZE="-release"
+		CFLAGS_DEBUG="${CFLAGS_DEBUG} -D_CRT_SECURE_NO_DEPRECATE -D_CRT_NONSTDC_NO_DEPRECATE"
+		CFLAGS_OPTIMIZE="${CFLAGS_OPTIMIZE} -D_CRT_SECURE_NO_DEPRECATE -D_CRT_NONSTDC_NO_DEPRECATE"
+		CC_OBJNAME="-Fo\[$]@"
 		if test "$doWince" != "no" ; then
 		    LDFLAGS_CONSOLE="-link ${lflags}"
 		    LDFLAGS_WINDOW=${LDFLAGS_CONSOLE}
@@ -1618,30 +1622,21 @@ AC_DEFUN([TEA_CONFIG_CFLAGS], [
 	OpenBSD-*)
 	    arch=`arch -s`
 	    case "$arch" in
-	    vax)
-		SHLIB_SUFFIX=""
-		SHARED_LIB_SUFFIX=""
-		LDFLAGS=""
-		;;
-	    *)
+	    alpha|sparc64)
 		SHLIB_CFLAGS="-fPIC"
-		SHLIB_LD='${CC} -shared ${SHLIB_CFLAGS}'
-		SHLIB_SUFFIX=".so"
-		AS_IF([test $doRpath = yes], [
-		    CC_SEARCH_FLAGS='-Wl,-rpath,${LIB_RUNTIME_DIR}'])
-		LD_SEARCH_FLAGS=${CC_SEARCH_FLAGS}
-		SHARED_LIB_SUFFIX='${TCL_TRIM_DOTS}.so.${SHLIB_VERSION}'
-		LDFLAGS="-Wl,-export-dynamic"
-		;;
-	    esac
-	    case "$arch" in
-	    vax)
-		CFLAGS_OPTIMIZE="-O1"
 		;;
 	    *)
-		CFLAGS_OPTIMIZE="-O2"
+		SHLIB_CFLAGS="-fpic"
 		;;
 	    esac
+	    SHLIB_LD='${CC} -shared ${SHLIB_CFLAGS}'
+	    SHLIB_SUFFIX=".so"
+	    AS_IF([test $doRpath = yes], [
+		CC_SEARCH_FLAGS='-Wl,-rpath,${LIB_RUNTIME_DIR}'])
+	    LD_SEARCH_FLAGS=${CC_SEARCH_FLAGS}
+	    SHARED_LIB_SUFFIX='${TCL_TRIM_DOTS}.so${SHLIB_VERSION}'
+	    LDFLAGS="-Wl,-export-dynamic"
+	    CFLAGS_OPTIMIZE="-O2"
 	    AS_IF([test "${TCL_THREADS}" = "1"], [
 		# On OpenBSD:	Compile with -pthread
 		#		Don't link with -lpthread
@@ -2148,6 +2143,7 @@ dnl # preprocessing tests use only CPPFLAGS.
     AC_SUBST(CFLAGS_DEBUG)
     AC_SUBST(CFLAGS_OPTIMIZE)
     AC_SUBST(CFLAGS_WARNING)
+    AC_SUBST(CC_OBJNAME)
 
     AC_SUBST(STLIB_LD)
     AC_SUBST(SHLIB_LD)
@@ -2725,7 +2721,6 @@ AC_DEFUN([TEA_TCL_LINK_LIBS], [
 #	Might define the following vars:
 #		_ISOC99_SOURCE
 #		_LARGEFILE64_SOURCE
-#		_LARGEFILE_SOURCE64
 #--------------------------------------------------------------------
 
 AC_DEFUN([TEA_TCL_EARLY_FLAG],[
@@ -2748,8 +2743,6 @@ AC_DEFUN([TEA_TCL_EARLY_FLAGS],[
 	[char *p = (char *)strtoll; char *q = (char *)strtoull;])
     TEA_TCL_EARLY_FLAG(_LARGEFILE64_SOURCE,[#include <sys/stat.h>],
 	[struct stat64 buf; int i = stat64("/", &buf);])
-    TEA_TCL_EARLY_FLAG(_LARGEFILE_SOURCE64,[#include <sys/stat.h>],
-	[char *p = (char *)open64;])
     if test "x${tcl_flags}" = "x" ; then
 	AC_MSG_RESULT([none])
     else
@@ -3357,7 +3350,12 @@ print("manifest needed")
 	VC_MANIFEST_EMBED_DLL="if test -f \[$]@.manifest ; then mt.exe -nologo -manifest \[$]@.manifest -outputresource:\[$]@\;2 ; fi"
 	VC_MANIFEST_EMBED_EXE="if test -f \[$]@.manifest ; then mt.exe -nologo -manifest \[$]@.manifest -outputresource:\[$]@\;1 ; fi"
 	MAKE_SHARED_LIB="${MAKE_SHARED_LIB} ; ${VC_MANIFEST_EMBED_DLL}"
-	TEA_ADD_CLEANFILES([*.manifest])
+
+	# Don't clean .manifest provided by the package (see TEA_ADD_MANIFEST)
+	# or one created by Makefile or configure.  Could use the /manifest:filename
+	# linker option to explicitly set the linker-generated filename.
+	eval eval "manifest=${PACKAGE_NAME}${SHARED_LIB_SUFFIX}.manifest"
+	TEA_ADD_CLEANFILES([$manifest])
 	])
 	MAKE_STUB_LIB="\${STLIB_LD} -nodefaultlib -out:\[$]@ \$(PKG_STUB_OBJECTS)"
     else
@@ -4202,6 +4200,57 @@ AC_DEFUN([TEA_PATH_CELIB], [
 	fi
     fi
 ])
+
+#--------------------------------------------------------------------
+# TEA_EMBED_MANIFEST
+#
+#	Figure out if we can embed the manifest where necessary
+#
+# Arguments:
+#	An optional manifest to merge into DLL/EXE.
+#
+# Results:
+#	Will define the following vars:
+#		VC_MANIFEST_EMBED_DLL
+#		VC_MANIFEST_EMBED_EXE
+#
+#--------------------------------------------------------------------
+
+AC_DEFUN([TEA_EMBED_MANIFEST], [
+    AC_MSG_CHECKING(whether to embed manifest)
+    AC_ARG_ENABLE(embedded-manifest,
+	AC_HELP_STRING([--enable-embedded-manifest],
+		[embed manifest if possible (default: yes)]),
+	[embed_ok=$enableval], [embed_ok=yes])
+
+    VC_MANIFEST_EMBED_DLL=
+    VC_MANIFEST_EMBED_EXE=
+    result=no
+    if test "$embed_ok" = "yes" -a "${SHARED_BUILD}" = "1" \
+       -a "$GCC" != "yes" ; then
+	# Add the magic to embed the manifest into the dll/exe
+	AC_EGREP_CPP([manifest needed], [
+#if defined(_MSC_VER) && _MSC_VER >= 1400
+print("manifest needed")
+#endif
+	], [
+	# Could do a CHECK_PROG for mt, but should always be with MSVC8+
+	# Could add 'if test -f' check, but manifest should be created
+	# in this compiler case
+	# Add in a manifest argument that may be specified
+	VC_MANIFEST_EMBED_DLL="if test -f \[$]@.manifest ; then mt.exe -nologo -manifest \[$]@.manifest $1 -outputresource:\[$]@\;2 ; fi"
+	VC_MANIFEST_EMBED_EXE="if test -f \[$]@.manifest ; then mt.exe -nologo -manifest \[$]@.manifest $1 -outputresource:\[$]@\;1 ; fi"
+	result=yes
+	if test "x$1" != x ; then
+	    result="yes ($1)"
+	fi
+	])
+    fi
+    AC_MSG_RESULT([$result])
+    AC_SUBST(VC_MANIFEST_EMBED_DLL)
+    AC_SUBST(VC_MANIFEST_EMBED_EXE)
+])
+
 # Local Variables:
 # mode: autoconf
 # End:
