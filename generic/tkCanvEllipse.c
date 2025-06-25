@@ -128,7 +128,7 @@ static Tk_OptionSpec optionSpecsEllipse[] = {
  * of procedures that can be invoked by generic item code.
  */
 
-Tk_PathItemType tkCircleType = {
+Tk_PathItemType tkpCircleType = {
     "circle",				/* name */
     sizeof(EllipseItem),		/* itemSize */
     CreateCircle,			/* createProc */
@@ -153,9 +153,10 @@ Tk_PathItemType tkCircleType = {
     (Tk_PathItemInsertProc *) NULL,	/* insertProc */
     (Tk_PathItemDCharsProc *) NULL,	/* dTextProc */
     (Tk_PathItemType *) NULL,		/* nextPtr */
+    1,					/* isPathType */
 };
 
-Tk_PathItemType tkEllipseType = {
+Tk_PathItemType tkpEllipseType = {
     "ellipse",				/* name */
     sizeof(EllipseItem),		/* itemSize */
     CreateEllipse,			/* createProc */
@@ -404,7 +405,8 @@ DisplayEllipse(Tk_PathCanvas canvas, Tk_PathItem *itemPtr, Display *display, Dra
 
     itemPtr->bbox = GetBareBbox(ellPtr);
     style = TkPathCanvasInheritStyle(itemPtr, 0);
-    TkPathDrawPath(Tk_PathCanvasTkwin(canvas), drawable, atomPtr, &style, &m, &itemPtr->bbox);
+    TkPathDrawPath(ContextOfCanvas(canvas), atomPtr, &style,
+	    &m, &itemPtr->bbox);
     TkPathCanvasFreeInheritedStyle(&style);
 }
 

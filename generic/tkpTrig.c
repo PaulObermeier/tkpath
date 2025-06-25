@@ -49,7 +49,6 @@
  *--------------------------------------------------------------
  */
 
-	/* ARGSUSED */
 void
 TkPathIncludePoint(
     Tk_PathItem *itemPtr,	/* Item whose bounding box is being

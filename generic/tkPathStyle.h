@@ -156,6 +156,9 @@ MODULE_SCOPE void	TkPathStyleChanged(Tk_PathStyle *masterPtr, int flags);
 	NULL, -1, offsetof(typeName, style.dashPtr),			\
 	0, (ClientData) &dashCO,					\
         PATH_STYLE_OPTION_STROKE_DASHARRAY},				\
+    {TK_OPTION_INT, "-strokedashoffset", NULL, NULL,			\
+	"0", -1, offsetof(typeName, style.offset), 0, 0,		\
+        PATH_STYLE_OPTION_STROKE_DASHOFFSET},				\
     {TK_OPTION_STRING_TABLE, "-strokelinecap", NULL, NULL,		\
         "butt", -1, offsetof(typeName, style.capStyle),		\
         0, (ClientData) lineCapST, PATH_STYLE_OPTION_STROKE_LINECAP},	\

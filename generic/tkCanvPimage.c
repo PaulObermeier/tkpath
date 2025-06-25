@@ -41,7 +41,7 @@ typedef struct PimageItem  {
     Tk_PhotoHandle photo;
     double width;	    /* If 0 use natural width or height. */
     double height;
-    int anchor;
+    Tk_Anchor anchor;       /* Where to anchor image relative to (x,y). */
     XColor *tintColor;
     double tintAmount;
     int interpolation;
@@ -113,10 +113,6 @@ enum {
 	(1L << (PATH_STYLE_OPTION_INDEX_END + 10))
 };
 
-static const char *imageAnchorST[] = {
-    "n", "w", "s", "e", "nw", "ne", "sw", "se", "c", NULL
-};
-
 static const char *imageInterpolationST[] = {
     "none", "fast", "best", NULL
 };
@@ -173,9 +169,9 @@ PATH_STYLE_CUSTOM_OPTION_PATHRECT
         0, 0, PIMAGE_OPTION_INDEX_WIDTH}
 
 #define PATH_OPTION_SPEC_ANCHOR				    \
-    {TK_OPTION_STRING_TABLE, "-anchor", NULL, NULL,	    \
+    {TK_OPTION_ANCHOR, "-anchor", NULL, NULL,		    \
 	"nw", -1, offsetof(PimageItem, anchor),	    \
-        0, (ClientData) imageAnchorST, 0}
+	0, 0, 0}
 
 #define PATH_OPTION_SPEC_TINTCOLOR			    \
     {TK_OPTION_COLOR, "-tintcolor", NULL, NULL,		    \
@@ -219,7 +215,7 @@ static Tk_OptionSpec optionSpecs[] = {
  * of procedures that can be invoked by generic item code.
  */
 
-Tk_PathItemType tkPimageType = {
+Tk_PathItemType tkpPimageType = {
     "pimage",				/* name */
     sizeof(PimageItem),			/* itemSize */
     CreatePimage,			/* createProc */
@@ -244,6 +240,7 @@ Tk_PathItemType tkPimageType = {
     (Tk_PathItemInsertProc *) NULL,	/* insertProc */
     (Tk_PathItemDCharsProc *) NULL,	/* dTextProc */
     (Tk_PathItemType *) NULL,		/* nextPtr */
+    1,					/* isPathType */
 };
 
 static int
@@ -275,7 +272,7 @@ CreatePimage(Tcl_Interp *interp, Tk_PathCanvas canvas,
     pimagePtr->photo = NULL;
     pimagePtr->height = 0;
     pimagePtr->width = 0;
-    pimagePtr->anchor = kPathImageAnchorNW;
+    pimagePtr->anchor = TK_ANCHOR_NW;
     pimagePtr->tintColor = NULL;
     pimagePtr->tintAmount = 0.0;
     pimagePtr->interpolation = kPathImageInterpolationFast;
@@ -386,50 +383,56 @@ ComputePimageBbox(Tk_PathCanvas canvas, PimageItem *pimagePtr)
     }
 
     switch (pimagePtr->anchor) {
-        case kPathImageAnchorW:
-        case kPathImageAnchorNW:
-        case kPathImageAnchorSW:
+	case TK_ANCHOR_NW:
+	case TK_ANCHOR_W:
+	case TK_ANCHOR_SW:
             bbox.x1 = pimagePtr->coord[0];
-            bbox.x2 = bbox.x1 + width;
             break;
-        case kPathImageAnchorN:
-        case kPathImageAnchorS:
-        case kPathImageAnchorC:
+
+	case TK_ANCHOR_N:
+	case TK_ANCHOR_CENTER:
+	case TK_ANCHOR_S:
             bbox.x1 = pimagePtr->coord[0] - width/2.0;
-            bbox.x2 = pimagePtr->coord[0] + width/2.0;
             break;
-        case kPathImageAnchorE:
-        case kPathImageAnchorNE:
-        case kPathImageAnchorSE:
+
+	case TK_ANCHOR_NE:
+	case TK_ANCHOR_E:
+	case TK_ANCHOR_SE:
             bbox.x1 = pimagePtr->coord[0] - width;
-            bbox.x2 = pimagePtr->coord[0];
+	    break;
+#if TK_MAJOR_VERSION >= 9
+        case TK_ANCHOR_NULL:
             break;
-        default:
-            break;
+#endif
+
     }
+    bbox.x2 = bbox.x1 + width;
 
     switch (pimagePtr->anchor) {
-        case kPathImageAnchorN:
-        case kPathImageAnchorNW:
-        case kPathImageAnchorNE:
+	case TK_ANCHOR_NW:
+	case TK_ANCHOR_N:
+	case TK_ANCHOR_NE:
             bbox.y1 = pimagePtr->coord[1];
-            bbox.y2 = pimagePtr->coord[1] + height;
             break;
-        case kPathImageAnchorW:
-        case kPathImageAnchorE:
-        case kPathImageAnchorC:
+
+	case TK_ANCHOR_W:
+	case TK_ANCHOR_CENTER:
+	case TK_ANCHOR_E:
             bbox.y1 = pimagePtr->coord[1] - height/2.0;
-            bbox.y2 = pimagePtr->coord[1] + height/2.0;
             break;
-        case kPathImageAnchorS:
-        case kPathImageAnchorSW:
-        case kPathImageAnchorSE:
+
+	case TK_ANCHOR_SW:
+	case TK_ANCHOR_S:
+	case TK_ANCHOR_SE:
             bbox.y1 = pimagePtr->coord[1] - height;
-            bbox.y2 = pimagePtr->coord[1];
+	    break;
+#if TK_MAJOR_VERSION >= 9
+        case TK_ANCHOR_NULL:
             break;
-        default:
-            break;
+#endif
     }
+    bbox.y2 = bbox.y1 + height;
+
     bbox.x1 -= BBOX_OUT;
     bbox.x2 += BBOX_OUT;
     bbox.y1 -= BBOX_OUT;
@@ -462,6 +465,9 @@ ConfigurePimage(Tcl_Interp *interp, Tk_PathCanvas canvas, Tk_PathItem *itemPtr,
 		continue;
 	    }
 	} else {
+	    if (errorResult != NULL) {
+		Tcl_DecrRefCount(errorResult);
+	    }
 	    errorResult = Tcl_GetObjResult(interp);
 	    Tcl_IncrRefCount(errorResult);
 	    Tk_RestoreSavedOptions(&savedOptions);
@@ -515,17 +521,20 @@ ConfigurePimage(Tcl_Interp *interp, Tk_PathCanvas canvas, Tk_PathItem *itemPtr,
 	 * count from going to zero so the image doesn't have to be recreated
 	 * if it hasn't changed.
 	 */
-	if (mask & PIMAGE_OPTION_INDEX_IMAGE) {
+	if (!error && (mask & PIMAGE_OPTION_INDEX_IMAGE)) {
 	    if (pimagePtr->imageObj != NULL) {
-		image = Tk_GetImage(interp, tkwin,
-			Tcl_GetString(pimagePtr->imageObj),
+		const char *name = Tcl_GetString(pimagePtr->imageObj);
+
+		image = Tk_GetImage(interp, tkwin, name,
 			ImageChangedProc, (ClientData) pimagePtr);
 		if (image == NULL) {
 		    continue;
 		}
-		photo =
-		    Tk_FindPhoto(interp, Tcl_GetString(pimagePtr->imageObj));
+		photo = Tk_FindPhoto(interp, name);
 		if (photo == NULL) {
+		    Tk_FreeImage(image);
+		    Tcl_SetObjResult(interp,
+			Tcl_NewStringObj("no photo with the given name", -1));
 		    continue;
 		}
 	    } else {
@@ -549,17 +558,17 @@ ConfigurePimage(Tcl_Interp *interp, Tk_PathCanvas canvas, Tk_PathItem *itemPtr,
     }
     pimagePtr->fillOpacity = MAX(0.0, MIN(1.0, pimagePtr->fillOpacity));
 
-    /*
-     * Recompute bounding box for path.
-     */
-    if (error) {
+    if (errorResult != NULL) {
 	Tcl_SetObjResult(interp, errorResult);
 	Tcl_DecrRefCount(errorResult);
 	return TCL_ERROR;
-    } else {
-	ComputePimageBbox(canvas, pimagePtr);
-	return TCL_OK;
     }
+
+    /*
+     * Recompute bounding box for path.
+     */
+    ComputePimageBbox(canvas, pimagePtr);
+    return TCL_OK;
 }
 
 static void
@@ -586,7 +595,7 @@ DisplayPimage(Tk_PathCanvas canvas, Tk_PathItem *itemPtr, Display *display,
     TMatrix m = GetCanvasTMatrix(canvas);
     TkPathContext ctx;
 
-    ctx = TkPathInit(Tk_PathCanvasTkwin(canvas), drawable);
+    ctx = ContextOfCanvas(canvas);
     TkPathPushTMatrix(ctx, &m);
     m = GetTMatrix(pimagePtr);
     TkPathPushTMatrix(ctx, &m);
@@ -597,7 +606,6 @@ DisplayPimage(Tk_PathCanvas canvas, Tk_PathItem *itemPtr, Display *display,
             pimagePtr->tintColor, pimagePtr->tintAmount,
 	    pimagePtr->interpolation,
             pimagePtr->srcRegionPtr);
-    TkPathFree(ctx);
 }
 
 static void
@@ -1069,11 +1077,11 @@ TranslatePimage(Tk_PathCanvas canvas, Tk_PathItem *itemPtr, int compensate,
 
     CompensateTranslate(itemPtr, compensate, &deltaX, &deltaY);
 
-    /* Just translate the bbox'es as well. */
-    TranslatePathRect(&itemPtr->bbox, deltaX, deltaY);
+    /* Translate coordinates. */
     pimagePtr->coord[0] += deltaX;
     pimagePtr->coord[1] += deltaY;
-    TranslateItemHeader(itemPtr, deltaX, deltaY);
+    /* Recompute bounding box. */
+    ComputePimageBbox(canvas, pimagePtr);
 }
 
 static void

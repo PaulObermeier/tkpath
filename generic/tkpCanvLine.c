@@ -284,7 +284,7 @@ static Tk_OptionSpec optionSpecs[] = {
  * can be invoked by generic item code.
  */
 
-Tk_PathItemType tkLineType = {
+Tk_PathItemType tkpLineType = {
     "line",			/* name */
     sizeof(LineItem),		/* itemSize */
     CreateLine,			/* createProc */
@@ -293,7 +293,7 @@ Tk_PathItemType tkLineType = {
     LineCoords,			/* coordProc */
     DeleteLine,			/* deleteProc */
     DisplayLine,		/* displayProc */
-    0,				/* flags */
+    TK_MOVABLE_POINTS,		/* flags */
     NULL,			/* bboxProc */
     LineToPoint,		/* pointProc */
     LineToArea,			/* areaProc */
@@ -309,6 +309,7 @@ Tk_PathItemType tkLineType = {
     (Tk_PathItemInsertProc *) LineInsert,/* insertProc */
     LineDeleteCoords,		/* dTextProc */
     NULL,			/* nextPtr */
+    0,				/* isPathType */
 };
 
 /*
@@ -435,8 +436,9 @@ LineCoords(
     LineItem *linePtr = (LineItem *) itemPtr;
     int i, numPoints;
     double *coordPtr;
+    Tcl_Size myobjc = objc;
 
-    if (objc == 0) {
+    if (myobjc == 0) {
 	int numCoords;
 	Tcl_Obj *subobj, *obj = Tcl_NewObj();
 
@@ -459,27 +461,27 @@ LineCoords(
 	Tcl_SetObjResult(interp, obj);
 	return TCL_OK;
     }
-    if (objc == 1) {
-	if (Tcl_ListObjGetElements(interp, objv[0], &objc,
+    if (myobjc == 1) {
+	if (Tcl_ListObjGetElements(interp, objv[0], &myobjc,
 		(Tcl_Obj ***) &objv) != TCL_OK) {
 	    return TCL_ERROR;
 	}
     }
-    if (objc & 1) {
+    if (myobjc & 1) {
         Tcl_SetObjResult(interp,
             Tcl_ObjPrintf("wrong # coordinates: expected an even number, got %"
-                          TCL_SIZE_MODIFIER "d", objc));
+                          TCL_SIZE_MODIFIER "d", myobjc));
 	return TCL_ERROR;
-    } else if (objc < 4) {
+    } else if (myobjc < 4) {
         Tcl_SetObjResult(interp,
                          Tcl_ObjPrintf("wrong # coordinates: expected at least 4, got %"
-                                       TCL_SIZE_MODIFIER "d", objc));
+                                       TCL_SIZE_MODIFIER "d", myobjc));
 	return TCL_ERROR;
     } else {
-	numPoints = objc/2;
+	numPoints = myobjc/2;
 	if (linePtr->numPoints != numPoints) {
 	    coordPtr = (double *)
-		    ckalloc((unsigned) (sizeof(double) * objc));
+		    ckalloc((unsigned) (sizeof(double) * myobjc));
 	    if (linePtr->coordPtr != NULL) {
 		ckfree((char *) linePtr->coordPtr);
 	    }
@@ -487,7 +489,7 @@ LineCoords(
 	    linePtr->numPoints = numPoints;
 	}
 	coordPtr = linePtr->coordPtr;
-	for (i = 0; i <objc; i++) {
+	for (i = 0; i <myobjc; i++) {
 	    if (Tk_PathCanvasGetCoordFromObj(interp, canvas, objv[i],
 		    coordPtr++) != TCL_OK) {
   		return TCL_ERROR;
@@ -571,7 +573,7 @@ ConfigureLine(
 	    (linePtr->outline.activeDashPtr != NULL
 		    && linePtr->outline.activeDashPtr->number != 0) ||
 	    linePtr->outline.activeColor != NULL ||
-	    linePtr->outline.activeStipple != (Tcl_Size) NULL) {
+	    linePtr->outline.activeStipple != None) {
 	itemPtr->redraw_flags |= TK_ITEM_STATE_DEPENDANT;
     } else {
 	itemPtr->redraw_flags &= ~TK_ITEM_STATE_DEPENDANT;
@@ -772,10 +774,12 @@ ComputeLineBbox(
 	width = 1.0;
     }
     if (linePtr->arrow != ARROWS_NONE) {
-	if (linePtr->arrow != ARROWS_LAST) {
+	if ((linePtr->arrow != ARROWS_LAST) &&
+		(linePtr->firstArrowPtr != NULL)) {
 	    TkPathIncludePoint((Tk_PathItem *) linePtr, linePtr->firstArrowPtr);
 	}
-	if (linePtr->arrow != ARROWS_FIRST) {
+	if ((linePtr->arrow != ARROWS_FIRST) &&
+		(linePtr->lastArrowPtr != NULL)) {
 	    TkPathIncludePoint((Tk_PathItem *) linePtr, linePtr->lastArrowPtr);
 	}
     }
@@ -1373,7 +1377,6 @@ LineDeleteCoords(
  *--------------------------------------------------------------
  */
 
-	/* ARGSUSED */
 static double
 LineToPoint(
     Tk_PathCanvas canvas,		/* Canvas containing item. */
@@ -1600,7 +1603,6 @@ LineToPoint(
  *--------------------------------------------------------------
  */
 
-	/* ARGSUSED */
 static int
 LineToArea(
     Tk_PathCanvas canvas,		/* Canvas containing item. */
@@ -2255,7 +2257,7 @@ LineToPostscript(
 	if (linePtr->outline.activeColor!=NULL) {
 	    color = linePtr->outline.activeColor;
 	}
-	if (linePtr->outline.activeStipple!=(Tcl_Size) NULL) {
+	if (linePtr->outline.activeStipple!=None) {
 	    stipple = linePtr->outline.activeStipple;
 	}
     } else if (state == TK_PATHSTATE_DISABLED) {
@@ -2265,7 +2267,7 @@ LineToPostscript(
 	if (linePtr->outline.disabledColor!=NULL) {
 	    color = linePtr->outline.disabledColor;
 	}
-	if (linePtr->outline.disabledStipple!=(Tcl_Size) NULL) {
+	if (linePtr->outline.disabledStipple!=None) {
 	    stipple = linePtr->outline.disabledStipple;
 	}
     }
@@ -2283,7 +2285,7 @@ LineToPostscript(
 	if (Tk_PathCanvasPsColor(interp, canvas, color) != TCL_OK) {
 	    return TCL_ERROR;
 	}
-	if (stipple != (Tcl_Size) NULL) {
+	if (stipple != None) {
 	    Tcl_AppendResult(interp, "clip ", NULL);
 	    if (Tk_PathCanvasPsStipple(interp, canvas, stipple) != TCL_OK) {
 		return TCL_ERROR;
@@ -2301,7 +2303,7 @@ LineToPostscript(
     if ((!linePtr->smooth) || (linePtr->numPoints < 3)) {
 	Tk_PathCanvasPsPath(interp, canvas, linePtr->coordPtr, linePtr->numPoints);
     } else {
-	if ((stipple == (Tcl_Size) NULL) && linePtr->smooth->postscriptProc) {
+	if ((stipple == None) && linePtr->smooth->postscriptProc) {
 	    linePtr->smooth->postscriptProc(interp, canvas,
 		    linePtr->coordPtr, linePtr->numPoints, linePtr->splineSteps);
 	} else {
@@ -2362,7 +2364,7 @@ LineToPostscript(
      */
 
     if (linePtr->firstArrowPtr != NULL) {
-	if (stipple != (Tcl_Size) NULL) {
+	if (stipple != None) {
 	    Tcl_AppendResult(interp, "grestore gsave\n", NULL);
 	}
 	if (ArrowheadPostscript(interp, canvas, linePtr,
@@ -2371,7 +2373,7 @@ LineToPostscript(
 	}
     }
     if (linePtr->lastArrowPtr != NULL) {
-	if (stipple != (Tcl_Size) NULL) {
+	if (stipple != None) {
 	    Tcl_AppendResult(interp, "grestore gsave\n", NULL);
 	}
 	if (ArrowheadPostscript(interp, canvas, linePtr,
@@ -2420,17 +2422,17 @@ ArrowheadPostscript(
 
     stipple = linePtr->outline.stipple;
     if (((TkPathCanvas *)canvas)->currentItemPtr == (Tk_PathItem *)linePtr) {
-	if (linePtr->outline.activeStipple!=(Tcl_Size) NULL) {
+	if (linePtr->outline.activeStipple!=None) {
 	    stipple = linePtr->outline.activeStipple;
 	}
     } else if (state == TK_PATHSTATE_DISABLED) {
-	if (linePtr->outline.activeStipple!=(Tcl_Size) NULL) {
+	if (linePtr->outline.activeStipple!=None) {
 	    stipple = linePtr->outline.disabledStipple;
 	}
     }
 
     Tk_PathCanvasPsPath(interp, canvas, arrowPtr, PTS_IN_ARROW);
-    if (stipple != (Tcl_Size) NULL) {
+    if (stipple != None) {
 	Tcl_AppendResult(interp, "clip ", NULL);
 	if (Tk_PathCanvasPsStipple(interp, canvas, stipple) != TCL_OK) {
 	    return TCL_ERROR;

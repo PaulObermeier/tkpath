@@ -95,7 +95,8 @@ MatrixGetOption(
     ClientData clientData,
     Tk_Window tkwin,
     char *recordPtr,	     /* Pointer to widget record. */
-    Tcl_Size internalOffset) /* Offset within *recordPtr containing the value. */
+    Tcl_Size internalOffset) /* Offset within *recordPtr containing the
+                              * value. */
 {
     char 	*internalPtr;
     TMatrix 	*matrixPtr;
@@ -242,12 +243,15 @@ Tk_PathDashOptionGetProc(
     Tcl_Size internalOffset)	/* Offset within *recordPtr containing the
 				 * value. */
 {
-    Tk_PathDash *dashPtr = (Tk_PathDash *) (recordPtr + internalOffset);
+    Tk_PathDash *dashPtr = *((Tk_PathDash **) (recordPtr + internalOffset));
     Tcl_Obj *listObj = Tcl_NewListObj(0, NULL);
     int i;
 
+    if (dashPtr != NULL) {
     for (i = 0; i < dashPtr->number; i++) {
-        Tcl_ListObjAppendElement(NULL, listObj, Tcl_NewDoubleObj(dashPtr->array[i]));
+	    Tcl_ListObjAppendElement(NULL, listObj,
+				     Tcl_NewDoubleObj(dashPtr->array[i]));
+	}
     }
     return listObj;
 }
@@ -326,7 +330,8 @@ PathColorGetOption(
     ClientData clientData,
     Tk_Window tkwin,
     char *recordPtr,	    	/* Pointer to widget record. */
-    Tcl_Size internalOffset)    /* Offset in *recordPtr containing the value. */
+    Tcl_Size internalOffset) /* Offset within *recordPtr containing the
+                              * value. */
 {
     char 	*internalPtr;
     Tcl_Obj 	*objPtr = NULL;
@@ -394,6 +399,9 @@ static Tk_OptionSpec styleOptionSpecs[] = {
     {TK_OPTION_CUSTOM, "-strokedasharray", NULL, NULL,
 	NULL, -1, offsetof(Tk_PathStyle, dashPtr),
 	TK_OPTION_NULL_OK, (ClientData) &dashCO, PATH_STYLE_OPTION_STROKE_DASHARRAY},
+    {TK_OPTION_INT, "-strokedashoffset", NULL, NULL,
+	"0", -1, offsetof(Tk_PathStyle, offset), 0, 0,
+	PATH_STYLE_OPTION_STROKE_DASHOFFSET},
     {TK_OPTION_STRING_TABLE, "-strokelinecap", NULL, NULL,
         "butt", -1, offsetof(Tk_PathStyle, capStyle),
 	0, (ClientData) lineCapST, PATH_STYLE_OPTION_STROKE_LINECAP},
@@ -1065,6 +1073,9 @@ TkPathStyleMergeStyles(
         }
         if (mask & PATH_STYLE_OPTION_STROKE_DASHARRAY) {
 	    dstStyle->dashPtr = srcStyle->dashPtr;
+        }
+        if (mask & PATH_STYLE_OPTION_STROKE_DASHOFFSET) {
+	    dstStyle->offset = srcStyle->offset;
         }
         if (mask & PATH_STYLE_OPTION_STROKE_LINECAP) {
             dstStyle->capStyle = srcStyle->capStyle;

@@ -298,7 +298,7 @@ StopsSet(
 				 * we may need to return a value (NULL). */
     char *recordPtr,		/* Pointer to storage for the widget record. */
     Tcl_Size internalOffset,	/* Offset within *recordPtr at which the
-                               internal value is to be stored. */
+                                 * internal value is to be stored. */
     char *oldInternalPtr,	/* Pointer to storage for the old value. */
     int flags)				/* Flags for the option, set Tk_SetOptions. */
 {

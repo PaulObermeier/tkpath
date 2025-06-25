@@ -171,9 +171,8 @@ static int		GetPostscriptPoints(Tcl_Interp *interp,
  *--------------------------------------------------------------
  */
 
-    /* ARGSUSED */
 int
-TkCanvPostscriptCmd(
+TkpCanvPostscriptCmd(
     TkPathCanvas *canvasPtr,	/* Information about canvas widget. */
     Tcl_Interp *interp,		/* Current interpreter. */
     int objc,			/* Number of arguments. */
@@ -309,8 +308,10 @@ TkCanvPostscriptCmd(
     case TK_ANCHOR_SE:
 	deltaX = -psInfo.width;
 	break;
+#if TK_MAJOR_VERSION >= 9
     case TK_ANCHOR_NULL:
 	break;
+#endif
     }
     switch (psInfo.pageAnchor) {
     case TK_ANCHOR_NW:
@@ -328,8 +329,10 @@ TkCanvPostscriptCmd(
     case TK_ANCHOR_SE:
 	deltaY = 0;
 	break;
+#if TK_MAJOR_VERSION >= 9
     case TK_ANCHOR_NULL:
 	break;
+#endif
     }
 
     if (psInfo.colorMode == NULL) {

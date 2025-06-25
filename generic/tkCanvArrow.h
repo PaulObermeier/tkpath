@@ -5,7 +5,6 @@
  *
  * Copyright (c) 2014 OpenSim Ltd., author:Zoltan Bojthe
  *
- * $Id$
  */
 
 #ifndef INCLUDED_TKCANVARROW_H
@@ -66,8 +65,7 @@ MODULE_SCOPE int	GetSegmentsFromPathAtomList(PathAtom *firstAtom,
 			    PathPoint **firstPt, PathPoint *secondPt,
 			    PathPoint *penultPt, PathPoint **lastPt);
 MODULE_SCOPE PathAtom *	MakePathAtomsFromArrow(ArrowDescr *arrowDescr);
-MODULE_SCOPE void	DisplayArrow(Tk_PathCanvas canvas, Drawable drawable,
-			    ArrowDescr *arrowDescr,
+MODULE_SCOPE void	DisplayArrow(Tk_PathCanvas canvas, ArrowDescr *arrowDescr,
 			    Tk_PathStyle *const style, TMatrix *mPtr,
 			    PathRect *bboxPtr);
 MODULE_SCOPE void	PaintArrow(TkPathContext context,

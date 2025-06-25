@@ -155,6 +155,7 @@ to float (double).
     Stroke (strokeOptions):
         -stroke color
         -strokedasharray dashArray
+        -strokedashoffset integer
         -strokelinecap butt|round|square
         -strokelinejoin miter|round|bevel
         -strokemiterlimit float

@@ -63,7 +63,7 @@ static void	ScalePrect(Tk_PathCanvas canvas, Tk_PathItem *itemPtr,
 			double scaleX, double scaleY);
 static void	TranslatePrect(Tk_PathCanvas canvas, Tk_PathItem *itemPtr,
 			int compensate, double deltaX, double deltaY);
-static PathAtom * MakePathAtoms(PrectItem *prectPtr);
+static PathAtom * MakePathAtoms(PrectItem *prectPtr, int needPath);
 
 
 enum {
@@ -103,7 +103,7 @@ static Tk_OptionSpec optionSpecs[] = {
  * of procedures that can be invoked by generic item code.
  */
 
-Tk_PathItemType tkPrectType = {
+Tk_PathItemType tkpPrectType = {
     "prect",				/* name */
     sizeof(PrectItem),			/* itemSize */
     CreatePrect,			/* createProc */
@@ -128,6 +128,7 @@ Tk_PathItemType tkPrectType = {
     (Tk_PathItemInsertProc *) NULL,	/* insertProc */
     (Tk_PathItemDCharsProc *) NULL,	/* dTextProc */
     (Tk_PathItemType *) NULL,		/* nextPtr */
+    1,					/* isPathType */
 };
 
 
@@ -279,7 +280,7 @@ ConfigurePrect(Tcl_Interp *interp, Tk_PathCanvas canvas, Tk_PathItem *itemPtr,
 }
 
 static PathAtom *
-MakePathAtoms(PrectItem *prectPtr)
+MakePathAtoms(PrectItem *prectPtr, int needPath)
 {
     Tk_PathItem *itemPtr = (Tk_PathItem *) prectPtr;
     PathAtom *atomPtr;
@@ -289,7 +290,7 @@ MakePathAtoms(PrectItem *prectPtr)
     points[1] = itemPtr->bbox.y1;
     points[2] = itemPtr->bbox.x2;
     points[3] = itemPtr->bbox.y2;
-    TkPathMakePrectAtoms(points, prectPtr->rx, prectPtr->ry, &atomPtr);
+    TkPathMakePrectAtoms(points, prectPtr->rx, prectPtr->ry, needPath, &atomPtr);
     return atomPtr;
 }
 
@@ -320,9 +321,9 @@ DisplayPrect(Tk_PathCanvas canvas, Tk_PathItem *itemPtr, Display *display, Drawa
     Tk_PathStyle style;
 
     style = TkPathCanvasInheritStyle(itemPtr, 0);
-    atomPtr = MakePathAtoms(prectPtr);
-    TkPathDrawPath(Tk_PathCanvasTkwin(canvas), drawable, atomPtr,
-	    &style, &m, &itemPtr->bbox);
+    atomPtr = MakePathAtoms(prectPtr, 0);
+    TkPathDrawPath(ContextOfCanvas(canvas), atomPtr, &style,
+	    &m, &itemPtr->bbox);
     TkPathFreeAtoms(atomPtr);
     TkPathCanvasFreeInheritedStyle(&style);
 }
@@ -375,7 +376,7 @@ PrectToPoint(Tk_PathCanvas canvas, Tk_PathItem *itemPtr, double *pointPtr)
     if (rectiLinear) {
         dist = PathRectToPoint(bareRect, width, filled, pointPtr);
     } else {
-	PathAtom *atomPtr = MakePathAtoms(prectPtr);
+	PathAtom *atomPtr = MakePathAtoms(prectPtr, 1);
         dist = GenericPathToPoint(canvas, itemPtr, &style, atomPtr,
             prectPtr->maxNumSegments, pointPtr);
 	TkPathFreeAtoms(atomPtr);
@@ -426,7 +427,7 @@ PrectToArea(Tk_PathCanvas canvas, Tk_PathItem *itemPtr, double *areaPtr)
     if (rectiLinear) {
         area = PathRectToArea(bareRect, width, filled, areaPtr);
     } else {
-	PathAtom *atomPtr = MakePathAtoms(prectPtr);
+	PathAtom *atomPtr = MakePathAtoms(prectPtr, 1);
         area = GenericPathToArea(canvas, itemPtr, &style,
                 atomPtr, prectPtr->maxNumSegments, areaPtr);
 	TkPathFreeAtoms(atomPtr);
@@ -457,7 +458,7 @@ PrectToPdf(Tcl_Interp *interp, Tk_PathCanvas canvas, Tk_PathItem *itemPtr,
     points[1] = itemPtr->bbox.y1;
     points[2] = itemPtr->bbox.x2;
     points[3] = itemPtr->bbox.y2;
-    TkPathMakePrectAtoms(points, prectPtr->rx, prectPtr->ry, &atomPtr);
+    TkPathMakePrectAtoms(points, prectPtr->rx, prectPtr->ry, 0, &atomPtr);
     result = TkPathPdf(interp, atomPtr, &style, &itemPtr->bbox, objc, objv);
     TkPathFreeAtoms(atomPtr);
     TkPathCanvasFreeInheritedStyle(&style);

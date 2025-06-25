@@ -250,7 +250,7 @@ static void		TranslatePolygon(Tk_PathCanvas canvas,
  * that can be invoked by generic item code.
  */
 
-Tk_PathItemType tkPolygonType = {
+Tk_PathItemType tkpPolygonType = {
     "polygon",				/* name */
     sizeof(PolygonItem),		/* itemSize */
     CreatePolygon,			/* createProc */
@@ -259,7 +259,7 @@ Tk_PathItemType tkPolygonType = {
     PolygonCoords,			/* coordProc */
     DeletePolygon,			/* deleteProc */
     DisplayPolygon,			/* displayProc */
-    0,					/* flags */
+    TK_MOVABLE_POINTS,			/* flags */
     NULL,				/* bboxProc */
     PolygonToPoint,			/* pointProc */
     PolygonToArea,			/* areaProc */
@@ -275,6 +275,7 @@ Tk_PathItemType tkPolygonType = {
     (Tk_PathItemInsertProc *) PolygonInsert,/* insertProc */
     PolygonDeleteCoords,		/* dTextProc */
     NULL,				/* nextPtr */
+    0,					/* isPathType */
 };
 
 /*
@@ -335,9 +336,9 @@ CreatePolygon(
     polyPtr->fillColor = NULL;
     polyPtr->activeFillColor = NULL;
     polyPtr->disabledFillColor = NULL;
-    polyPtr->fillStipple = (Tcl_Size) NULL;
-    polyPtr->activeFillStipple = (Tcl_Size) NULL;
-    polyPtr->disabledFillStipple = (Tcl_Size) NULL;
+    polyPtr->fillStipple = None;
+    polyPtr->activeFillStipple = None;
+    polyPtr->disabledFillStipple = None;
     polyPtr->fillGC = NULL;
     polyPtr->smooth = NULL;
     polyPtr->splineSteps = 12;
@@ -404,8 +405,9 @@ PolygonCoords(
 {
     PolygonItem *polyPtr = (PolygonItem *) itemPtr;
     int i, numPoints;
+    Tcl_Size myobjc = objc;
 
-    if (objc == 0) {
+    if (myobjc == 0) {
 	/*
 	 * Print the coords used to create the polygon. If we auto closed the
 	 * polygon then we don't report the last point.
@@ -420,19 +422,19 @@ PolygonCoords(
 	Tcl_SetObjResult(interp, obj);
 	return TCL_OK;
     }
-    if (objc == 1) {
-	if (Tcl_ListObjGetElements(interp, objv[0], &objc,
+    if (myobjc == 1) {
+	if (Tcl_ListObjGetElements(interp, objv[0], &myobjc,
 		(Tcl_Obj ***) &objv) != TCL_OK) {
 	    return TCL_ERROR;
 	}
     }
-    if (objc & 1) {
+    if (myobjc & 1) {
 	Tcl_SetObjResult(interp,
             Tcl_ObjPrintf("wrong # coordinates: expected an even number, got %"
-                          TCL_SIZE_MODIFIER "d", objc));
+                          TCL_SIZE_MODIFIER "d", myobjc));
         return TCL_ERROR;
     } else {
-	numPoints = objc/2;
+	numPoints = myobjc/2;
 	if (polyPtr->pointsAllocated <= numPoints) {
 	    if (polyPtr->coordPtr != NULL) {
 		ckfree((char *) polyPtr->coordPtr);
@@ -444,10 +446,10 @@ PolygonCoords(
 	     */
 
 	    polyPtr->coordPtr = (double *) ckalloc((unsigned)
-		    (sizeof(double) * (objc+2)));
+		    (sizeof(double) * (myobjc+2)));
 	    polyPtr->pointsAllocated = numPoints+1;
 	}
-	for (i = objc-1; i >= 0; i--) {
+	for (i = myobjc-1; i >= 0; i--) {
 	    if (Tk_PathCanvasGetCoordFromObj(interp, canvas, objv[i],
 		    &polyPtr->coordPtr[i]) != TCL_OK) {
 		return TCL_ERROR;
@@ -460,12 +462,12 @@ PolygonCoords(
 	 * Close the polygon if it isn't already closed.
 	 */
 
-	if (objc>2 && ((polyPtr->coordPtr[objc-2] != polyPtr->coordPtr[0])
-		|| (polyPtr->coordPtr[objc-1] != polyPtr->coordPtr[1]))) {
+	if (myobjc>2 && ((polyPtr->coordPtr[myobjc-2] != polyPtr->coordPtr[0])
+		|| (polyPtr->coordPtr[myobjc-1] != polyPtr->coordPtr[1]))) {
 	    polyPtr->autoClosed = 1;
 	    polyPtr->numPoints++;
-	    polyPtr->coordPtr[objc] = polyPtr->coordPtr[0];
-	    polyPtr->coordPtr[objc+1] = polyPtr->coordPtr[1];
+	    polyPtr->coordPtr[myobjc] = polyPtr->coordPtr[0];
+	    polyPtr->coordPtr[myobjc+1] = polyPtr->coordPtr[1];
 	}
 	ComputePolygonBbox(canvas, polyPtr);
     }
@@ -526,9 +528,9 @@ ConfigurePolygon(
 	    (polyPtr->outline.activeDashPtr != NULL &&
 		    polyPtr->outline.activeDashPtr->number != 0) ||
 	    polyPtr->outline.activeColor != NULL ||
-	    polyPtr->outline.activeStipple != (Tcl_Size) NULL ||
+	    polyPtr->outline.activeStipple != None ||
 	    polyPtr->activeFillColor != NULL ||
-	    polyPtr->activeFillStipple != (Tcl_Size) NULL) {
+	    polyPtr->activeFillStipple != None) {
 	itemPtr->redraw_flags |= TK_ITEM_STATE_DEPENDANT;
     } else {
 	itemPtr->redraw_flags &= ~TK_ITEM_STATE_DEPENDANT;
@@ -562,14 +564,14 @@ ConfigurePolygon(
 	if (polyPtr->activeFillColor!=NULL) {
 	    color = polyPtr->activeFillColor;
 	}
-	if (polyPtr->activeFillStipple!=(Tcl_Size) NULL) {
+	if (polyPtr->activeFillStipple!=None) {
 	    stipple = polyPtr->activeFillStipple;
 	}
     } else if (state == TK_PATHSTATE_DISABLED) {
 	if (polyPtr->disabledFillColor!=NULL) {
 	    color = polyPtr->disabledFillColor;
 	}
-	if (polyPtr->disabledFillStipple!=(Tcl_Size) NULL) {
+	if (polyPtr->disabledFillStipple!=None) {
 	    stipple = polyPtr->disabledFillStipple;
 	}
     }
@@ -579,7 +581,7 @@ ConfigurePolygon(
     } else {
 	gcValues.foreground = color->pixel;
 	mask = GCForeground;
-	if (stipple != (Tcl_Size) NULL) {
+	if (stipple != None) {
 	    gcValues.stipple = stipple;
 	    gcValues.fill_style = FillStippled;
 	    mask |= GCStipple|GCFillStyle;
@@ -589,7 +591,7 @@ ConfigurePolygon(
 	 * Mac OS X CG drawing needs access to the outline linewidth
 	 * even for fills (as linewidth controls antialiasing).
 	 */
-	gcValues.line_width = polyPtr->outline.gc != NULL ?
+	gcValues.line_width = (polyPtr->outline.gc != NULL) ?
 		polyPtr->outline.gc->line_width : 0;
 	mask |= GCLineWidth;
 #endif
@@ -952,14 +954,14 @@ DisplayPolygon(
 	if (polyPtr->outline.activeWidth>linewidth) {
 	    linewidth = polyPtr->outline.activeWidth;
 	}
-	if (polyPtr->activeFillStipple != (Tcl_Size) NULL) {
+	if (polyPtr->activeFillStipple != None) {
 	    stipple = polyPtr->activeFillStipple;
 	}
     } else if (state == TK_PATHSTATE_DISABLED) {
 	if (polyPtr->outline.disabledWidth>0.0) {
 	    linewidth = polyPtr->outline.disabledWidth;
 	}
-	if (polyPtr->disabledFillStipple != (Tcl_Size) NULL) {
+	if (polyPtr->disabledFillStipple != None) {
 	    stipple = polyPtr->disabledFillStipple;
 	}
     }
@@ -969,7 +971,7 @@ DisplayPolygon(
      * reset the offset when done, since the GC is supposed to be read-only.
      */
 
-    if ((stipple != (Tcl_Size) NULL) && (polyPtr->fillGC != NULL)) {
+    if ((stipple != None) && (polyPtr->fillGC != NULL)) {
 	int w = 0;
 	int h = 0;
 	Tk_TSOffset tsoffset, *tsoffsetPtr;
@@ -1051,7 +1053,7 @@ DisplayPolygon(
 	}
     }
     Tk_PathResetOutlineGC(canvas, itemPtr, &(polyPtr->outline));
-    if ((stipple != (Tcl_Size) NULL) && (polyPtr->fillGC != NULL)) {
+    if ((stipple != None) && (polyPtr->fillGC != NULL)) {
 	XSetTSOrigin(display, polyPtr->fillGC, 0, 0);
     }
 }
@@ -1300,7 +1302,6 @@ PolygonDeleteCoords(
  *--------------------------------------------------------------
  */
 
-	/* ARGSUSED */
 static double
 PolygonToPoint(
     Tk_PathCanvas canvas,	/* Canvas containing item. */
@@ -1493,7 +1494,6 @@ PolygonToPoint(
  *--------------------------------------------------------------
  */
 
-	/* ARGSUSED */
 static int
 PolygonToArea(
     Tk_PathCanvas canvas,	/* Canvas containing item. */
@@ -1929,13 +1929,13 @@ PolygonToPostscript(
 	if (polyPtr->outline.activeColor!=NULL) {
 	    color = polyPtr->outline.activeColor;
 	}
-	if (polyPtr->outline.activeStipple!=(Tcl_Size) NULL) {
+	if (polyPtr->outline.activeStipple!=None) {
 	    stipple = polyPtr->outline.activeStipple;
 	}
 	if (polyPtr->activeFillColor!=NULL) {
 	    fillColor = polyPtr->activeFillColor;
 	}
-	if (polyPtr->activeFillStipple!=(Tcl_Size) NULL) {
+	if (polyPtr->activeFillStipple!=None) {
 	    fillStipple = polyPtr->activeFillStipple;
 	}
     } else if (state == TK_PATHSTATE_DISABLED) {
@@ -1945,13 +1945,13 @@ PolygonToPostscript(
 	if (polyPtr->outline.disabledColor!=NULL) {
 	    color = polyPtr->outline.disabledColor;
 	}
-	if (polyPtr->outline.disabledStipple!=(Tcl_Size) NULL) {
+	if (polyPtr->outline.disabledStipple!=None) {
 	    stipple = polyPtr->outline.disabledStipple;
 	}
 	if (polyPtr->disabledFillColor!=NULL) {
 	    fillColor = polyPtr->disabledFillColor;
 	}
-	if (polyPtr->disabledFillStipple!=(Tcl_Size) NULL) {
+	if (polyPtr->disabledFillStipple!=None) {
 	    fillStipple = polyPtr->disabledFillStipple;
 	}
     }
@@ -1969,7 +1969,7 @@ PolygonToPostscript(
 	if (Tk_PathCanvasPsColor(interp, canvas, color) != TCL_OK) {
 	    return TCL_ERROR;
 	}
-	if (stipple != (Tcl_Size) NULL) {
+	if (stipple != None) {
 	    Tcl_AppendResult(interp, "clip ", NULL);
 	    if (Tk_PathCanvasPsStipple(interp, canvas, stipple) != TCL_OK) {
 		return TCL_ERROR;
@@ -1995,7 +1995,7 @@ PolygonToPostscript(
 	if (Tk_PathCanvasPsColor(interp, canvas, fillColor) != TCL_OK) {
 	    return TCL_ERROR;
 	}
-	if (fillStipple != (Tcl_Size) NULL) {
+	if (fillStipple != None) {
 	    Tcl_AppendResult(interp, "eoclip ", NULL);
 	    if (Tk_PathCanvasPsStipple(interp, canvas, fillStipple) != TCL_OK) {
 		return TCL_ERROR;

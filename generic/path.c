@@ -12,12 +12,11 @@
 #include "tkIntPath.h"
 
 #ifdef _WIN32
-#define NO_STRICT
 #include <windows.h>
 #endif
 
-/* Keep patch level release numbers odd and set even only on release. */
-#define TKPATH_REQUIRE    "9.0"
+#define TKPATH_REQUIRE_TCL "8.6-"
+#define TKPATH_REQUIRE_TK  "8.6-"
 
 MODULE_SCOPE int gAntiAlias;
 MODULE_SCOPE int gSurfaceCopyPremultiplyAlpha;
@@ -79,7 +78,7 @@ int Tkpath_Init(Tcl_Interp *interp)		/* Tcl interpreter. */
     int major = -1, minor = -1;
 
 #if defined(USE_TCL_STUBS)
-    if (Tcl_InitStubs(interp, TKPATH_REQUIRE, 0) == NULL) {
+    if (Tcl_InitStubs(interp, TKPATH_REQUIRE_TCL, 0) == NULL) {
 	return TCL_ERROR;
     }
 #endif
@@ -87,7 +86,7 @@ int Tkpath_Init(Tcl_Interp *interp)		/* Tcl interpreter. */
     agg_custom_alloc = (void *(*)(unsigned int)) Tcl_Alloc;
     agg_custom_free = (void (*)(void *)) Tcl_Free;
 #endif
-    tclver = Tcl_PkgRequire(interp, "Tcl", TKPATH_REQUIRE, 0);
+    tclver = Tcl_PkgRequire(interp, "Tcl", TKPATH_REQUIRE_TCL, 0);
     if (tclver == NULL) {
 	return TCL_ERROR;
     }
@@ -96,13 +95,18 @@ int Tkpath_Init(Tcl_Interp *interp)		/* Tcl interpreter. */
 	gCanZlib = 1;
     }
 #if defined(USE_TK_STUBS)
-    if (Tk_InitStubs(interp, TKPATH_REQUIRE, 0) == NULL) {
+    if (Tk_InitStubs(interp, TKPATH_REQUIRE_TK, 0) == NULL) {
 	return TCL_ERROR;
     }
 #endif
-    if (Tcl_PkgRequire(interp, "Tk", TKPATH_REQUIRE, 0) == NULL) {
+    if (Tcl_PkgRequire(interp, "Tk", TKPATH_REQUIRE_TK, 0) == NULL) {
 	return TCL_ERROR;
     }
+
+    if (TkPathSetup(interp) == TCL_ERROR) {
+        return TCL_ERROR;
+    }
+
     if (Tcl_CreateNamespace(interp, "::tkp", NULL, NULL) == NULL) {
 	Tcl_ResetResult(interp);
     }

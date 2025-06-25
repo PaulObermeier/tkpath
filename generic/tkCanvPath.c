@@ -109,7 +109,7 @@ static Tk_OptionSpec optionSpecs[] = {
  * of procedures that can be invoked by generic item code.
  */
 
-Tk_PathItemType tkPathType = {
+Tk_PathItemType tkpPathType = {
     "path",			/* name */
     sizeof(PathItem),		/* itemSize */
     CreatePath,			/* createProc */
@@ -134,6 +134,7 @@ Tk_PathItemType tkPathType = {
     (Tk_PathItemInsertProc *) NULL,	/* insertProc */
     (Tk_PathItemDCharsProc *) NULL,	/* dTextProc */
     (Tk_PathItemType *) NULL,		/* nextPtr */
+    1,				/* isPathType */
 };
 
 /* Be sure rect is not empty (see above) before doing this. */
@@ -309,6 +310,7 @@ ProcessPath(
             pathPtr->pathObjPtr = objv[0];
             pathPtr->maxNumSegments = GetSubpathMaxNumSegments(atomPtr);
             Tcl_IncrRefCount(pathPtr->pathObjPtr);
+            pathPtr->flags |= kPathItemNeedNewNormalizedPath;
         }
         return result;
     } else {
@@ -605,13 +607,13 @@ DisplayPath(
 
     if (pathPtr->pathLen > 2) {
         style = TkPathCanvasInheritStyle(itemPtr, 0);
-        TkPathDrawPath(Tk_PathCanvasTkwin(canvas), drawable, pathPtr->atomPtr,
-                &style, &m, &itemPtr->bbox);
+        TkPathDrawPath(ContextOfCanvas(canvas), pathPtr->atomPtr, &style,
+		&m, &itemPtr->bbox);
         /*
          * Display arrowheads, if they are wanted.
          */
-        DisplayArrow(canvas, drawable, &pathPtr->startarrow, &style, &m, &itemPtr->bbox);
-        DisplayArrow(canvas, drawable, &pathPtr->endarrow, &style, &m, &itemPtr->bbox);
+        DisplayArrow(canvas, &pathPtr->startarrow, &style, &m, &itemPtr->bbox);
+        DisplayArrow(canvas, &pathPtr->endarrow, &style, &m, &itemPtr->bbox);
 
         TkPathCanvasFreeInheritedStyle(&style);
     }

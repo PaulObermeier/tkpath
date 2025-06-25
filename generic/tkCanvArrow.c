@@ -38,7 +38,7 @@ MakePathAtomsFromArrow(ArrowDescr *arrowDescr)
 }
 
 void
-DisplayArrow(Tk_PathCanvas canvas, Drawable drawable, ArrowDescr *arrowDescr,
+DisplayArrow(Tk_PathCanvas canvas, ArrowDescr *arrowDescr,
         Tk_PathStyle *const style, TMatrix *mPtr, PathRect *bboxPtr)
 {
     if (arrowDescr->arrowEnabled && arrowDescr->arrowPointsPtr != NULL) {
@@ -46,6 +46,7 @@ DisplayArrow(Tk_PathCanvas canvas, Drawable drawable, ArrowDescr *arrowDescr,
         TkPathColor fc;
         PathAtom *atomPtr;
 
+	TkPathResetTMatrix(ContextOfCanvas(canvas));
         if (arrowDescr->arrowFillRatio > 0.0 &&
 	    arrowDescr->arrowLength != 0.0) {
             arrowStyle.strokeWidth = 0.0;
@@ -53,6 +54,9 @@ DisplayArrow(Tk_PathCanvas canvas, Drawable drawable, ArrowDescr *arrowDescr,
             fc.gradientInstPtr = NULL;
             arrowStyle.fill = &fc;
             arrowStyle.fillOpacity = arrowStyle.strokeOpacity;
+#if !defined(_WIN32) && !defined(PLATFORM_SDL) && !defined(MAC_OSX_TK)
+            arrowStyle.dashPtr = NULL;
+#endif
         } else {
             arrowStyle.fill = NULL;
             arrowStyle.fillOpacity = 1.0;
@@ -60,8 +64,8 @@ DisplayArrow(Tk_PathCanvas canvas, Drawable drawable, ArrowDescr *arrowDescr,
             arrowStyle.dashPtr = NULL;
         }
         atomPtr = MakePathAtomsFromArrow(arrowDescr);
-        TkPathDrawPath(Tk_PathCanvasTkwin(canvas), drawable, atomPtr,
-		       &arrowStyle, mPtr, bboxPtr);
+        TkPathDrawPath(ContextOfCanvas(canvas), atomPtr, &arrowStyle,
+		mPtr, bboxPtr);
         TkPathFreeAtoms(atomPtr);
     }
 }
@@ -75,6 +79,7 @@ PaintArrow(TkPathContext context, ArrowDescr *arrowDescr,
         TkPathColor fc;
         PathAtom *atomPtr;
 
+        arrowStyle.matrixPtr = NULL;
         if (arrowDescr->arrowFillRatio > 0.0 &&
 	    arrowDescr->arrowLength != 0.0) {
             arrowStyle.strokeWidth = 0.0;

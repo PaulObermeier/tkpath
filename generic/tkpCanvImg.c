@@ -135,7 +135,7 @@ static void		TranslateImage(Tk_PathCanvas canvas,
  * can be invoked by generic item code.
  */
 
-Tk_PathItemType tkImageType = {
+Tk_PathItemType tkpImageType = {
     "image",			/* name */
     sizeof(ImageItem),		/* itemSize */
     CreateImage,		/* createProc */
@@ -160,6 +160,7 @@ Tk_PathItemType tkImageType = {
     NULL,			/* insertProc */
     NULL,			/* dTextProc */
     NULL,			/* nextPtr */
+    0,				/* isPathType */
 };
 
 /*
@@ -271,8 +272,9 @@ ImageCoords(
     Tcl_Obj *const objv[])	/* Array of coordinates: x1, y1, x2, y2, ... */
 {
     ImageItem *imgPtr = (ImageItem *) itemPtr;
+    Tcl_Size myobjc = objc;
 
-    if (objc == 0) {
+    if (myobjc == 0) {
 	Tcl_Obj *obj = Tcl_NewObj();
 
 	Tcl_Obj *subobj = Tcl_NewDoubleObj(imgPtr->x);
@@ -280,13 +282,13 @@ ImageCoords(
 	subobj = Tcl_NewDoubleObj(imgPtr->y);
 	Tcl_ListObjAppendElement(interp, obj, subobj);
 	Tcl_SetObjResult(interp, obj);
-    } else if (objc < 3) {
-	if (objc==1) {
-	    if (Tcl_ListObjGetElements(interp, objv[0], &objc,
+    } else if (myobjc < 3) {
+	if (myobjc==1) {
+	    if (Tcl_ListObjGetElements(interp, objv[0], &myobjc,
 		    (Tcl_Obj ***) &objv) != TCL_OK) {
 		return TCL_ERROR;
-	    } else if (objc != 2) {
-                return TkpWrongNumberOfCoordinates(interp, 2, 2, objc);
+	    } else if (myobjc != 2) {
+                return TkpWrongNumberOfCoordinates(interp, 2, 2, myobjc);
 	    }
 	}
 	if ((Tk_PathCanvasGetCoordFromObj(interp, canvas, objv[0], &imgPtr->x) != TCL_OK)
@@ -296,7 +298,7 @@ ImageCoords(
 	}
 	ComputeImageBbox(canvas, imgPtr);
     } else {
-        return TkpWrongNumberOfCoordinates(interp, 0, 2, objc);
+        return TkpWrongNumberOfCoordinates(interp, 0, 2, myobjc);
     }
     return TCL_OK;
 }
@@ -493,7 +495,6 @@ DeleteImage(
  *--------------------------------------------------------------
  */
 
-	/* ARGSUSED */
 static void
 ComputeImageBbox(
     Tk_PathCanvas canvas,		/* Canvas that contains item. */
@@ -563,8 +564,10 @@ ComputeImageBbox(
 	x -= width/2;
 	y -= height/2;
 	break;
+#if TK_MAJOR_VERSION >= 9
     case TK_ANCHOR_NULL:
 	break;
+#endif
     }
 
     /*
@@ -851,7 +854,9 @@ ImageToPostscript(
     case TK_ANCHOR_SW:						break;
     case TK_ANCHOR_W:			   y -= height/2.0;	break;
     case TK_ANCHOR_CENTER: x -= width/2.0; y -= height/2.0;	break;
+#if TK_MAJOR_VERSION >= 9
     case TK_ANCHOR_NULL:                                        break;
+#endif
     }
 
     if (!prepass) {

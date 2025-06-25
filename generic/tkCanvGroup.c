@@ -92,7 +92,7 @@ static Tk_OptionSpec optionSpecs[] = {
  * of procedures that can be invoked by generic item code.
  */
 
-Tk_PathItemType tkGroupType = {
+Tk_PathItemType tkpGroupType = {
     "group",				/* name */
     sizeof(GroupItem),			/* itemSize */
     CreateGroup,			/* createProc */
@@ -117,13 +117,14 @@ Tk_PathItemType tkGroupType = {
     (Tk_PathItemInsertProc *) NULL,	/* insertProc */
     (Tk_PathItemDCharsProc *) NULL,	/* dTextProc */
     (Tk_PathItemType *) NULL,		/* nextPtr */
+    1,					/* isPathType */
 };
 
 
 static int
 CreateGroup(Tcl_Interp *interp,
 	Tk_PathCanvas canvas, struct Tk_PathItem *itemPtr,
-        Tcl_Size objc, Tcl_Obj *const objv[])
+        int objc, Tcl_Obj *const objv[])
 {
     GroupItem *groupPtr = (GroupItem *) itemPtr;
     Tk_PathItemEx *itemExPtr = &groupPtr->headerEx;
