@@ -147,7 +147,7 @@ static void		TranslateBitmap(Tk_PathCanvas canvas,
  * that can be invoked by generic item code.
  */
 
-Tk_PathItemType tkBitmapType = {
+Tk_PathItemType tkpBitmapType = {
     "bitmap",			/* name */
     sizeof(BitmapItem),		/* itemSize */
     TkcCreateBitmap,		/* createProc */
@@ -172,6 +172,7 @@ Tk_PathItemType tkBitmapType = {
     NULL,			/* insertProc */
     NULL,			/* dTextProc */
     NULL,			/* nextPtr */
+    0,				/* isPathType */
 };
 
 /*
@@ -215,9 +216,9 @@ TkcCreateBitmap(
      */
 
     bmapPtr->anchor = TK_ANCHOR_CENTER;
-    bmapPtr->bitmap = (Tcl_Size) NULL;
-    bmapPtr->activeBitmap = (Tcl_Size) NULL;
-    bmapPtr->disabledBitmap = (Tcl_Size) NULL;
+    bmapPtr->bitmap = None;
+    bmapPtr->activeBitmap = None;
+    bmapPtr->disabledBitmap = None;
     bmapPtr->fgColor = NULL;
     bmapPtr->activeFgColor = NULL;
     bmapPtr->disabledFgColor = NULL;
@@ -287,8 +288,9 @@ BitmapCoords(
     Tcl_Obj *const objv[])	/* Array of coordinates: x1, y1, x2, y2, ... */
 {
     BitmapItem *bmapPtr = (BitmapItem *) itemPtr;
+    Tcl_Size myobjc = objc;
 
-    if (objc == 0) {
+    if (myobjc == 0) {
 	Tcl_Obj *obj = Tcl_NewObj();
 
 	Tcl_Obj *subobj = Tcl_NewDoubleObj(bmapPtr->x);
@@ -296,13 +298,13 @@ BitmapCoords(
 	subobj = Tcl_NewDoubleObj(bmapPtr->y);
 	Tcl_ListObjAppendElement(interp, obj, subobj);
 	Tcl_SetObjResult(interp, obj);
-    } else if (objc < 3) {
-	if (objc == 1) {
-	    if (Tcl_ListObjGetElements(interp, objv[0], &objc,
+    } else if (myobjc < 3) {
+	if (myobjc == 1) {
+	    if (Tcl_ListObjGetElements(interp, objv[0], &myobjc,
 		    (Tcl_Obj ***) &objv) != TCL_OK) {
 		return TCL_ERROR;
-	    } else if (objc != 2) {
-                return TkpWrongNumberOfCoordinates(interp, 2, 2, objc);
+	    } else if (myobjc != 2) {
+                return TkpWrongNumberOfCoordinates(interp, 2, 2, myobjc);
 	    }
 	}
 	if ((Tk_PathCanvasGetCoordFromObj(interp, canvas, objv[0],
@@ -313,7 +315,7 @@ BitmapCoords(
 	}
 	ComputeBitmapBbox(canvas, bmapPtr);
     } else {
-        return TkpWrongNumberOfCoordinates(interp, 0, 2, objc);
+        return TkpWrongNumberOfCoordinates(interp, 0, 2, myobjc);
     }
     return TCL_OK;
 }
@@ -370,7 +372,7 @@ ConfigureBitmap(
 
     if (bmapPtr->activeFgColor!=NULL ||
 	    bmapPtr->activeBgColor!=NULL ||
-	    bmapPtr->activeBitmap!=(Tcl_Size) NULL) {
+	    bmapPtr->activeBitmap!=None) {
 	itemPtr->redraw_flags |= TK_ITEM_STATE_DEPENDANT;
     } else {
 	itemPtr->redraw_flags &= ~TK_ITEM_STATE_DEPENDANT;
@@ -393,7 +395,7 @@ ConfigureBitmap(
 	if (bmapPtr->activeBgColor!=NULL) {
 	    bgColor = bmapPtr->activeBgColor;
 	}
-	if (bmapPtr->activeBitmap!=(Tcl_Size) NULL) {
+	if (bmapPtr->activeBitmap!=None) {
 	    bitmap = bmapPtr->activeBitmap;
 	}
     } else if (state == TK_PATHSTATE_DISABLED) {
@@ -403,12 +405,12 @@ ConfigureBitmap(
 	if (bmapPtr->disabledBgColor!=NULL) {
 	    bgColor = bmapPtr->disabledBgColor;
 	}
-	if (bmapPtr->disabledBitmap!=(Tcl_Size) NULL) {
+	if (bmapPtr->disabledBitmap!=None) {
 	    bitmap = bmapPtr->disabledBitmap;
 	}
     }
 
-    if (bitmap == (Tcl_Size) NULL) {
+    if (bitmap == None) {
 	newGC = NULL;
     } else {
 	gcValues.foreground = fgColor->pixel;
@@ -491,11 +493,11 @@ ComputeBitmapBbox(
     }
     bitmap = bmapPtr->bitmap;
     if (((TkPathCanvas *)canvas)->currentItemPtr == (Tk_PathItem *)bmapPtr) {
-	if (bmapPtr->activeBitmap!=(Tcl_Size) NULL) {
+	if (bmapPtr->activeBitmap!=None) {
 	    bitmap = bmapPtr->activeBitmap;
 	}
     } else if (state == TK_PATHSTATE_DISABLED) {
-	if (bmapPtr->disabledBitmap!=(Tcl_Size) NULL) {
+	if (bmapPtr->disabledBitmap!=None) {
 	    bitmap = bmapPtr->disabledBitmap;
 	}
     }
@@ -503,7 +505,7 @@ ComputeBitmapBbox(
     x = (int) (bmapPtr->x + ((bmapPtr->x >= 0) ? 0.5 : - 0.5));
     y = (int) (bmapPtr->y + ((bmapPtr->y >= 0) ? 0.5 : - 0.5));
 
-    if ((state == TK_PATHSTATE_HIDDEN) || (bitmap == (Tcl_Size) NULL)) {
+    if ((state == TK_PATHSTATE_HIDDEN) || (bitmap == None)) {
 	bmapPtr->header.x1 = bmapPtr->header.x2 = x;
 	bmapPtr->header.y1 = bmapPtr->header.y2 = y;
 	return;
@@ -546,8 +548,10 @@ ComputeBitmapBbox(
 	x -= width/2;
 	y -= height/2;
 	break;
+#if TK_MAJOR_VERSION >= 9
     case TK_ANCHOR_NULL:
 	break;
+#endif
     }
 
     /*
@@ -603,16 +607,16 @@ DisplayBitmap(
     }
     bitmap = bmapPtr->bitmap;
     if (((TkPathCanvas *)canvas)->currentItemPtr == itemPtr) {
-	if (bmapPtr->activeBitmap!=(Tcl_Size) NULL) {
+	if (bmapPtr->activeBitmap!=None) {
 	    bitmap = bmapPtr->activeBitmap;
 	}
     } else if (state == TK_PATHSTATE_DISABLED) {
-	if (bmapPtr->disabledBitmap!=(Tcl_Size) NULL) {
+	if (bmapPtr->disabledBitmap!=None) {
 	    bitmap = bmapPtr->disabledBitmap;
 	}
     }
 
-    if (bitmap != (Tcl_Size) NULL) {
+    if (bitmap != None) {
 	if (x > bmapPtr->header.x1) {
 	    bmapX = x - bmapPtr->header.x1;
 	    bmapWidth = bmapPtr->header.x2 - x;
@@ -675,7 +679,6 @@ DisplayBitmap(
  *--------------------------------------------------------------
  */
 
-	/* ARGSUSED */
 static double
 BitmapToPoint(
     Tk_PathCanvas canvas,		/* Canvas containing item. */
@@ -732,7 +735,6 @@ BitmapToPoint(
  *--------------------------------------------------------------
  */
 
-	/* ARGSUSED */
 static int
 BitmapToArea(
     Tk_PathCanvas canvas,		/* Canvas containing item. */
@@ -913,7 +915,7 @@ BitmapToPostscript(
 	if (bmapPtr->activeBgColor!=NULL) {
 	    bgColor = bmapPtr->activeBgColor;
 	}
-	if (bmapPtr->activeBitmap!=(Tcl_Size) NULL) {
+	if (bmapPtr->activeBitmap!=None) {
 	    bitmap = bmapPtr->activeBitmap;
 	}
     } else if (state == TK_PATHSTATE_DISABLED) {
@@ -923,12 +925,12 @@ BitmapToPostscript(
 	if (bmapPtr->disabledBgColor!=NULL) {
 	    bgColor = bmapPtr->disabledBgColor;
 	}
-	if (bmapPtr->disabledBitmap!=(Tcl_Size) NULL) {
+	if (bmapPtr->disabledBitmap!=None) {
 	    bitmap = bmapPtr->disabledBitmap;
 	}
     }
 
-    if (bitmap == (Tcl_Size) NULL) {
+    if (bitmap == None) {
 	return TCL_OK;
     }
 
@@ -951,7 +953,9 @@ BitmapToPostscript(
     case TK_ANCHOR_SW:						break;
     case TK_ANCHOR_W:			   y -= height/2.0;	break;
     case TK_ANCHOR_CENTER: x -= width/2.0; y -= height/2.0;	break;
+#if TK_MAJOR_VERSION >= 9
     case TK_ANCHOR_NULL:                                        break;
+#endif
     }
 
     /*

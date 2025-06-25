@@ -22,7 +22,6 @@
 #include "tkp.h"
 #include "tkPath.h"
 
-#ifndef USE_OLD_TAG_SEARCH
 typedef struct TagSearchExpr_s TagSearchExpr;
 
 struct TagSearchExpr_s {
@@ -37,7 +36,6 @@ struct TagSearchExpr_s {
     int match;			/* This expression matches event's item's
 				 * tags. */
 };
-#endif /* not USE_OLD_TAG_SEARCH */
 
 /*
  * The record below describes a canvas widget. It is made available to the
@@ -241,19 +239,11 @@ typedef struct TkPathCanvas {
     int gradientUid;		/* Running integer used to number gradient tokens. */
     int tagStyle;
 
-    /*
-     * Additional information, added by the 'dash'-patch
-     */
-
-    void *reserved1;
     Tk_PathState canvas_state;	/* State of canvas. */
-    void *reserved2;
-    void *reserved3;
+    TkPathContext context;	/* Path context allocated during a redraw. */
     Tk_TSOffset *tsoffsetPtr;
-#ifndef USE_OLD_TAG_SEARCH
     TagSearchExpr *bindTagExprs;/* Linked list of tag expressions used in
 				 * bindings. */
-#endif
 } TkPathCanvas;
 
 /*
@@ -282,7 +272,8 @@ typedef struct TkPathCanvas {
  *				it should simply return immediately.
  * BBOX_NOT_EMPTY -		1 means that the bounding box of the area that
  *				should be redrawn is not empty.
- * CANVAS_DELETED -
+ * CANVAS_DELETED -		1 means that DestroyNotify was received.
+ * DRAW_OFFSCREEN -		1 means drawing is performed in DrawCanvas().
  */
 
 #define REDRAW_PENDING		(1 << 0)
@@ -295,6 +286,7 @@ typedef struct TkPathCanvas {
 #define REPICK_IN_PROGRESS	(1 << 7)
 #define BBOX_NOT_EMPTY		(1 << 8)
 #define CANVAS_DELETED		(1 << 9)
+#define DRAW_OFFSCREEN		(1 << 10)
 
 /*
  * Flag bits for canvas items (redraw_flags):
@@ -332,13 +324,20 @@ typedef struct Tk_PathItemEx  {
      */
 } Tk_PathItemEx;
 
+
+/*
+ * Retrieve TkPathContext from Tk_PathCanvas.
+ */
+
+#define ContextOfCanvas(canvas) (((TkPathCanvas *) (canvas))->context)
+
 /*
  * Canvas-related functions that are shared among Tk modules but not exported
  * to the outside world:
  */
 
 #ifndef TKP_NO_POSTSCRIPT
-MODULE_SCOPE int	    TkCanvPostscriptCmd(TkPathCanvas *canvasPtr,
+MODULE_SCOPE int	    TkpCanvPostscriptCmd(TkPathCanvas *canvasPtr,
 				Tcl_Interp *interp,
 				int objc, Tcl_Obj *const objv[]);
 #endif
@@ -400,24 +399,24 @@ MODULE_SCOPE void	    CanvasGradientsFree(TkPathCanvas *canvasPtr);
  * Standard item types provided by Tk:
  */
 
-MODULE_SCOPE Tk_PathItemType tkArcType, tkBitmapType, tkImageType, tkLineType;
-MODULE_SCOPE Tk_PathItemType tkOvalType, tkPolygonType;
-MODULE_SCOPE Tk_PathItemType tkRectangleType, tkTextType, tkWindowType;
+MODULE_SCOPE Tk_PathItemType tkpArcType, tkpBitmapType, tkpImageType;
+MODULE_SCOPE Tk_PathItemType tkpLineType, tkpOvalType, tkpPolygonType;
+MODULE_SCOPE Tk_PathItemType tkpRectangleType, tkpTextType, tkpWindowType;
 
 /*
  * tkpath specific item types.
  */
 
-MODULE_SCOPE Tk_PathItemType tkPathType;
-MODULE_SCOPE Tk_PathItemType tkPrectType;
-MODULE_SCOPE Tk_PathItemType tkPlineType;
-MODULE_SCOPE Tk_PathItemType tkPolylineType;
-MODULE_SCOPE Tk_PathItemType tkPpolygonType;
-MODULE_SCOPE Tk_PathItemType tkCircleType;
-MODULE_SCOPE Tk_PathItemType tkEllipseType;
-MODULE_SCOPE Tk_PathItemType tkPimageType;
-MODULE_SCOPE Tk_PathItemType tkPtextType;
-MODULE_SCOPE Tk_PathItemType tkGroupType;
+MODULE_SCOPE Tk_PathItemType tkpPathType;
+MODULE_SCOPE Tk_PathItemType tkpPrectType;
+MODULE_SCOPE Tk_PathItemType tkpPlineType;
+MODULE_SCOPE Tk_PathItemType tkpPolylineType;
+MODULE_SCOPE Tk_PathItemType tkpPpolygonType;
+MODULE_SCOPE Tk_PathItemType tkpCircleType;
+MODULE_SCOPE Tk_PathItemType tkpEllipseType;
+MODULE_SCOPE Tk_PathItemType tkpPimageType;
+MODULE_SCOPE Tk_PathItemType tkpPtextType;
+MODULE_SCOPE Tk_PathItemType tkpGroupType;
 
 #endif /* _TKPCANVAS */
 

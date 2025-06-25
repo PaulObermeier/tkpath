@@ -1,17 +1,16 @@
 # @configure_input@
 #
-namespace eval ::tkpath {
-    proc load_package {dir} {
-	load [file join $dir @PKG_LIB_FILE@]
+
+package ifneeded tkpath @PACKAGE_VERSION@ [list apply {dir {
+    uplevel \#0 namespace eval ::tkp \
+    	[list load [list [file join $dir @PKG_LIB_FILE@]]]
 	# Allow optional redirect of library components.
 	# Only necessary for testing, but could be used elsewhere.
 	if {[info exists ::env(TKPATH_LIBRARY)]} {
 	    set dir $::env(TKPATH_LIBRARY)
 	}
-	source $dir/tkpath.tcl
-    };# load_package
-}
-
-package ifneeded tkpath @PACKAGE_VERSION@ [list ::tkpath::load_package $dir]
+    uplevel \#0 namespace eval ::tkp \
+	[list source [list [file join $dir tkpath.tcl]]]
+}} $dir]
 
 #*EOF*

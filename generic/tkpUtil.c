@@ -15,24 +15,6 @@
 #include "tkInt.h"
 #include "tkIntPath.h"
 
-/*
- * The structure below defines the implementation of the "statekey" Tcl
- * object, used for quickly finding a mapping in a TkStateMap.
- */
-
-const
-TkObjType tkStateKeyObjType = {
-    {
-        "statekey",		/* name */
-        NULL,			/* freeIntRepProc */
-        NULL,			/* dupIntRepProc */
-        NULL,			/* updateStringProc */
-        NULL,			/* setFromAnyProc */
-        TCL_OBJTYPE_V0
-    },
-    0
-};
-
 static int
 GetOffset(Tcl_Interp *interp, ClientData clientData,
     Tcl_Obj *offsetObj, Tk_Window tkwin, Tk_TSOffset *offsetPtr)

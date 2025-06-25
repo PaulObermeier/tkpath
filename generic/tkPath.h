@@ -177,7 +177,7 @@ typedef struct TkPathColor {
  * Opaque platform dependent struct.
  */
 
-typedef XID TkPathContext;
+typedef ClientData TkPathContext;
 
 /*
  * Information used for parsing configuration options.
@@ -193,16 +193,17 @@ enum {
     PATH_STYLE_OPTION_MATRIX		    = (1L << 5),
     PATH_STYLE_OPTION_STROKE		    = (1L << 6),
     PATH_STYLE_OPTION_STROKE_DASHARRAY	    = (1L << 7),
-    PATH_STYLE_OPTION_STROKE_LINECAP        = (1L << 8),
-    PATH_STYLE_OPTION_STROKE_LINEJOIN       = (1L << 9),
-    PATH_STYLE_OPTION_STROKE_MITERLIMIT     = (1L << 10),
-    PATH_STYLE_OPTION_STROKE_OFFSET	    = (1L << 11),
-    PATH_STYLE_OPTION_STROKE_OPACITY	    = (1L << 12),
-    PATH_STYLE_OPTION_STROKE_STIPPLE	    = (1L << 13),
-    PATH_STYLE_OPTION_STROKE_WIDTH	    = (1L << 14),
-    PATH_CORE_OPTION_PARENT		    = (1L << 15),
-    PATH_CORE_OPTION_STYLENAME		    = (1L << 16),
-    PATH_CORE_OPTION_TAGS		    = (1L << 17),
+    PATH_STYLE_OPTION_STROKE_DASHOFFSET	    = (1L << 8),
+    PATH_STYLE_OPTION_STROKE_LINECAP        = (1L << 9),
+    PATH_STYLE_OPTION_STROKE_LINEJOIN       = (1L << 10),
+    PATH_STYLE_OPTION_STROKE_MITERLIMIT     = (1L << 11),
+    PATH_STYLE_OPTION_STROKE_OFFSET	    = (1L << 12),
+    PATH_STYLE_OPTION_STROKE_OPACITY	    = (1L << 13),
+    PATH_STYLE_OPTION_STROKE_STIPPLE	    = (1L << 14),
+    PATH_STYLE_OPTION_STROKE_WIDTH	    = (1L << 15),
+    PATH_CORE_OPTION_PARENT		    = (1L << 16),
+    PATH_CORE_OPTION_STYLENAME		    = (1L << 17),
+    PATH_CORE_OPTION_TAGS		    = (1L << 18),
 };
 
 #define PATH_STYLE_OPTION_INDEX_END 17	/* Use this for item specific flags */
@@ -294,7 +295,7 @@ MODULE_SCOPE int    TkPathParseToAtoms(Tcl_Interp *interp, Tcl_Obj *listObjPtr,
 MODULE_SCOPE void   TkPathFreeAtoms(PathAtom *pathAtomPtr);
 MODULE_SCOPE int    TkPathNormalize(Tcl_Interp *interp, PathAtom *atomPtr,
 			Tcl_Obj **listObjPtrPtr);
-MODULE_SCOPE int    TkPathMakePath(Drawable drawable, PathAtom *atomPtr,
+MODULE_SCOPE int    TkPathMakePath(TkPathContext ctx, PathAtom *atomPtr,
 			Tk_PathStyle *stylePtr);
 
 /*
@@ -319,6 +320,7 @@ MODULE_SCOPE void   TkPathFree(TkPathContext ctx);
 MODULE_SCOPE int    TkPathDrawingDestroysPath(void);
 MODULE_SCOPE int    TkPathPixelAlign(void);
 MODULE_SCOPE void   TkPathPushTMatrix(TkPathContext ctx, TMatrix *mPtr);
+MODULE_SCOPE void   TkPathResetTMatrix(TkPathContext ctx);
 MODULE_SCOPE void   TkPathSaveState(TkPathContext ctx);
 MODULE_SCOPE void   TkPathRestoreState(TkPathContext ctx);
 

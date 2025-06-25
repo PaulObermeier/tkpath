@@ -21,6 +21,21 @@
 extern "C" {
 #endif
 
+/* Check, if Tcl version supports Tcl_Size,
+   which was introduced in Tcl 8.7 and 9.
+*/
+#ifndef TCL_SIZE_MAX
+    #include <limits.h>
+    #define TCL_SIZE_MAX INT_MAX
+
+    #ifndef Tcl_Size
+        typedef int Tcl_Size;
+    #endif
+
+    #define TCL_SIZE_MODIFIER ""
+    #define Tcl_GetSizeIntFromObj Tcl_GetIntFromObj
+#endif
+
 /*
  * From tclInt.h version 1.118.2.11
  * Ensure WORDS_BIGENDIAN is defined correcly:
@@ -133,28 +148,18 @@ enum {
 };
 
 enum {
-    kPathImageAnchorN = 0,
-    kPathImageAnchorW,
-    kPathImageAnchorS,
-    kPathImageAnchorE,
-    kPathImageAnchorNW,
-    kPathImageAnchorNE,
-    kPathImageAnchorSW,
-    kPathImageAnchorSE,
-    kPathImageAnchorC
-};
-
-enum {
     kPathImageInterpolationNone = 0,
     kPathImageInterpolationFast,
     kPathImageInterpolationBest
 };
+
 /* These MUST be kept in sync with methodST and unitsST! */
 enum {
     kPathGradientMethodPad		= 0L,
     kPathGradientMethodRepeat,
     kPathGradientMethodReflect
 };
+
 enum {
     kPathGradientUnitsBoundingBox =	0L,
     kPathGradientUnitsUserSpace
@@ -281,6 +286,7 @@ enum {
  * The actual path drawing commands which are all platform specific.
  */
 
+MODULE_SCOPE int    TkPathSetup(Tcl_Interp *interp);
 MODULE_SCOPE TkPathContext TkPathInit(Tk_Window tkwin, Drawable d);
 MODULE_SCOPE TkPathContext TkPathInitSurface(Display *display,
 			int width, int height);
@@ -321,7 +327,7 @@ MODULE_SCOPE void   TkPathTextFree(Tk_PathTextStyle *textStylePtr,
 			 void *custom);
 MODULE_SCOPE PathRect TkPathTextMeasureBbox(Display *display,
 			Tk_PathTextStyle *textStylePtr, char *utf8,
-			void *custom);
+			double *lineSpacing, void *custom);
 MODULE_SCOPE void   TkPathSurfaceErase(TkPathContext ctx, double x, double y,
 			double width, double height);
 MODULE_SCOPE void   TkPathSurfaceToPhoto(Tcl_Interp *interp,
@@ -331,7 +337,7 @@ MODULE_SCOPE void   TkPathSurfaceToPhoto(Tcl_Interp *interp,
  * General path drawing using linked list of path atoms.
  */
 
-MODULE_SCOPE void   TkPathDrawPath(Tk_Window tkwin, Drawable drawable,
+MODULE_SCOPE void   TkPathDrawPath(TkPathContext context,
 			PathAtom *atomPtr, Tk_PathStyle *stylePtr,
 			TMatrix *mPtr, PathRect *bboxPtr);
 MODULE_SCOPE void   TkPathPaintPath(TkPathContext context, PathAtom *atomPtr,
@@ -339,7 +345,8 @@ MODULE_SCOPE void   TkPathPaintPath(TkPathContext context, PathAtom *atomPtr,
 MODULE_SCOPE PathRect TkPathGetTotalBbox(PathAtom *atomPtr,
 			Tk_PathStyle *stylePtr);
 MODULE_SCOPE void   TkPathMakePrectAtoms(double *pointsPtr,
-			double rx, double ry, PathAtom **atomPtrPtr);
+			double rx, double ry, int needPath,
+			PathAtom **atomPtrPtr);
 MODULE_SCOPE TkPathColor *TkPathNewPathColor(Tcl_Interp *interp,
 			Tk_Window tkwin, Tcl_Obj *nameObj);
 MODULE_SCOPE void   TkPathFreePathColor(TkPathColor *colorPtr);

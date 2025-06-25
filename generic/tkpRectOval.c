@@ -210,7 +210,7 @@ static Tk_OptionSpec optionSpecs[] = {
  * functions that can be invoked by generic item code.
  */
 
-Tk_PathItemType tkRectangleType = {
+Tk_PathItemType tkpRectangleType = {
     "rectangle",		/* name */
     sizeof(RectOvalItem),	/* itemSize */
     CreateRectOval,		/* createProc */
@@ -235,9 +235,10 @@ Tk_PathItemType tkRectangleType = {
     NULL,			/* insertProc */
     NULL,			/* dTextProc */
     NULL,			/* nextPtr */
+    0,				/* isPathType */
 };
 
-Tk_PathItemType tkOvalType = {
+Tk_PathItemType tkpOvalType = {
     "oval",			/* name */
     sizeof(RectOvalItem),	/* itemSize */
     CreateRectOval,		/* createProc */
@@ -262,6 +263,7 @@ Tk_PathItemType tkOvalType = {
     NULL,			/* insertProc */
     NULL,			/* dTextProc */
     NULL,			/* nextPtr */
+    0,				/* isPathType */
 };
 
 /*
@@ -311,9 +313,9 @@ CreateRectOval(
     rectOvalPtr->fillColor = NULL;
     rectOvalPtr->activeFillColor = NULL;
     rectOvalPtr->disabledFillColor = NULL;
-    rectOvalPtr->fillStipple = (Tcl_Size) NULL;
-    rectOvalPtr->activeFillStipple = (Tcl_Size) NULL;
-    rectOvalPtr->disabledFillStipple = (Tcl_Size) NULL;
+    rectOvalPtr->fillStipple = None;
+    rectOvalPtr->activeFillStipple = None;
+    rectOvalPtr->disabledFillStipple = None;
     rectOvalPtr->fillGC = NULL;
 
     optionTable = Tk_CreateOptionTable(interp, optionSpecs);
@@ -375,12 +377,13 @@ RectOvalCoords(
     Tcl_Obj *const objv[])	/* Array of coordinates: x1,y1,x2,y2,... */
 {
     RectOvalItem *rectOvalPtr = (RectOvalItem *) itemPtr;
+    Tcl_Size myobjc = objc;
 
     /*
      * If no coordinates, return the current coordinates (i.e. bounding box).
      */
 
-    if (objc == 0) {
+    if (myobjc == 0) {
 	Tcl_Obj *obj = Tcl_NewObj();
 
 	Tcl_ListObjAppendElement(NULL, obj,
@@ -399,8 +402,8 @@ RectOvalCoords(
      * If one "coordinate", treat as list of coordinates.
      */
 
-    if (objc == 1) {
-	if (Tcl_ListObjGetElements(interp, objv[0], &objc,
+    if (myobjc == 1) {
+	if (Tcl_ListObjGetElements(interp, objv[0], &myobjc,
 		(Tcl_Obj ***) &objv) != TCL_OK) {
 	    return TCL_ERROR;
 	}
@@ -410,8 +413,8 @@ RectOvalCoords(
      * Better have four coordinates now. Spit out an error message otherwise.
      */
 
-    if (objc != 4) {
-        return TkpWrongNumberOfCoordinates(interp, 0, 4, objc);
+    if (myobjc != 4) {
+        return TkpWrongNumberOfCoordinates(interp, 0, 4, myobjc);
     }
 
     /*
@@ -487,9 +490,9 @@ ConfigureRectOval(
 	    (rectOvalPtr->outline.activeDashPtr != NULL &&
 		    rectOvalPtr->outline.activeDashPtr->number != 0) ||
 	    rectOvalPtr->outline.activeColor != NULL ||
-	    rectOvalPtr->outline.activeStipple != (Tcl_Size) NULL ||
+	    rectOvalPtr->outline.activeStipple != None ||
 	    rectOvalPtr->activeFillColor != NULL ||
-	    rectOvalPtr->activeFillStipple != (Tcl_Size) NULL) {
+	    rectOvalPtr->activeFillStipple != None) {
 	itemPtr->redraw_flags |= TK_ITEM_STATE_DEPENDANT;
     } else {
 	itemPtr->redraw_flags &= ~TK_ITEM_STATE_DEPENDANT;
@@ -552,14 +555,14 @@ ConfigureRectOval(
 	if (rectOvalPtr->activeFillColor!=NULL) {
 	    color = rectOvalPtr->activeFillColor;
 	}
-	if (rectOvalPtr->activeFillStipple!=(Tcl_Size) NULL) {
+	if (rectOvalPtr->activeFillStipple!=None) {
 	    stipple = rectOvalPtr->activeFillStipple;
 	}
     } else if (state == TK_PATHSTATE_DISABLED) {
 	if (rectOvalPtr->disabledFillColor!=NULL) {
 	    color = rectOvalPtr->disabledFillColor;
 	}
-	if (rectOvalPtr->disabledFillStipple!=(Tcl_Size) NULL) {
+	if (rectOvalPtr->disabledFillStipple!=None) {
 	    stipple = rectOvalPtr->disabledFillStipple;
 	}
     }
@@ -568,7 +571,7 @@ ConfigureRectOval(
 	newGC = NULL;
     } else {
 	gcValues.foreground = color->pixel;
-	if (stipple != (Tcl_Size) NULL) {
+	if (stipple != None) {
 	    gcValues.stipple = stipple;
 	    gcValues.fill_style = FillStippled;
 	    mask = GCForeground|GCStipple|GCFillStyle;
@@ -580,7 +583,7 @@ ConfigureRectOval(
 	 * Mac OS X CG drawing needs access to the outline linewidth
 	 * even for fills (as linewidth controls antialiasing).
 	 */
-	gcValues.line_width = rectOvalPtr->outline.gc != NULL ?
+	gcValues.line_width = (rectOvalPtr->outline.gc != NULL) ?
 		rectOvalPtr->outline.gc->line_width : 0;
 	mask |= GCLineWidth;
 #endif
@@ -666,7 +669,6 @@ DeleteRectOval(
  *--------------------------------------------------------------
  */
 
-	/* ARGSUSED */
 static void
 ComputeRectOvalBbox(
     Tk_PathCanvas canvas,		/* Canvas that contains item. */
@@ -826,17 +828,17 @@ DisplayRectOval(
     }
     fillStipple = rectOvalPtr->fillStipple;
     if (((TkPathCanvas *)canvas)->currentItemPtr == (Tk_PathItem *)rectOvalPtr) {
-	if (rectOvalPtr->activeFillStipple != (Tcl_Size) NULL) {
+	if (rectOvalPtr->activeFillStipple != None) {
 	    fillStipple = rectOvalPtr->activeFillStipple;
 	}
     } else if (state == TK_PATHSTATE_DISABLED) {
-	if (rectOvalPtr->disabledFillStipple != (Tcl_Size) NULL) {
+	if (rectOvalPtr->disabledFillStipple != None) {
 	    fillStipple = rectOvalPtr->disabledFillStipple;
 	}
     }
 
     if (rectOvalPtr->fillGC != NULL) {
-	if (fillStipple != (Tcl_Size) NULL) {
+	if (fillStipple != None) {
 	    int w = 0, h = 0;
 	    Tk_TSOffset tsoffset, *tsoffsetPtr;
 
@@ -866,7 +868,7 @@ DisplayRectOval(
 	    }
 	    Tk_PathCanvasSetOffset(canvas, rectOvalPtr->fillGC, &tsoffset);
 	}
-	if (rectOvalPtr->header.typePtr == &tkRectangleType) {
+	if (rectOvalPtr->header.typePtr == &tkpRectangleType) {
 	    XFillRectangle(display, drawable, rectOvalPtr->fillGC,
 			   x1, y1, (unsigned int) (x2-x1), (unsigned int) (y2-y1));
 	} else {
@@ -874,14 +876,14 @@ DisplayRectOval(
 		    x1, y1, (unsigned) (x2-x1), (unsigned) (y2-y1),
 		    0, 360*64);
 	}
-	if (fillStipple != (Tcl_Size) NULL) {
+	if (fillStipple != None) {
 	    XSetTSOrigin(display, rectOvalPtr->fillGC, 0, 0);
 	}
     }
 
     if (rectOvalPtr->outline.gc != NULL) {
 	Tk_PathChangeOutlineGC(canvas, itemPtr, &(rectOvalPtr->outline));
-	if (rectOvalPtr->header.typePtr == &tkRectangleType) {
+	if (rectOvalPtr->header.typePtr == &tkpRectangleType) {
 	    XDrawRectangle(display, drawable, rectOvalPtr->outline.gc,
 		    x1, y1, (unsigned) (x2-x1), (unsigned) (y2-y1));
 	} else {
@@ -914,7 +916,6 @@ DisplayRectOval(
  *--------------------------------------------------------------
  */
 
-	/* ARGSUSED */
 static double
 RectToPoint(
     Tk_PathCanvas canvas,	/* Canvas containing item. */
@@ -1034,7 +1035,6 @@ RectToPoint(
  *--------------------------------------------------------------
  */
 
-	/* ARGSUSED */
 static double
 OvalToPoint(
     Tk_PathCanvas canvas,	/* Canvas containing item. */
@@ -1089,7 +1089,6 @@ OvalToPoint(
  *--------------------------------------------------------------
  */
 
-	/* ARGSUSED */
 static int
 RectToArea(
     Tk_PathCanvas canvas,	/* Canvas containing item. */
@@ -1163,7 +1162,6 @@ RectToArea(
  *--------------------------------------------------------------
  */
 
-	/* ARGSUSED */
 static int
 OvalToArea(
     Tk_PathCanvas canvas,	/* Canvas containing item. */
@@ -1394,7 +1392,7 @@ RectOvalToPostscript(
      * is the only part of the function's code that is type-specific.
      */
 
-    if (rectOvalPtr->header.typePtr == &tkRectangleType) {
+    if (rectOvalPtr->header.typePtr == &tkpRectangleType) {
 	sprintf(pathCmd, "%.15g %.15g moveto %.15g 0 rlineto 0 %.15g rlineto %.15g 0 rlineto closepath\n",
 		rectOvalPtr->bbox[0], y1,
 		rectOvalPtr->bbox[2]-rectOvalPtr->bbox[0], y2-y1,
@@ -1418,7 +1416,7 @@ RectOvalToPostscript(
 	if (rectOvalPtr->activeFillColor!=NULL) {
 	    fillColor = rectOvalPtr->activeFillColor;
 	}
-	if (rectOvalPtr->activeFillStipple!=(Tcl_Size) NULL) {
+	if (rectOvalPtr->activeFillStipple!=None) {
 	    fillStipple = rectOvalPtr->activeFillStipple;
 	}
     } else if (state == TK_PATHSTATE_DISABLED) {
@@ -1428,7 +1426,7 @@ RectOvalToPostscript(
 	if (rectOvalPtr->disabledFillColor!=NULL) {
 	    fillColor = rectOvalPtr->disabledFillColor;
 	}
-	if (rectOvalPtr->disabledFillStipple!=(Tcl_Size) NULL) {
+	if (rectOvalPtr->disabledFillStipple!=None) {
 	    fillStipple = rectOvalPtr->disabledFillStipple;
 	}
     }
@@ -1442,7 +1440,7 @@ RectOvalToPostscript(
 	if (Tk_PathCanvasPsColor(interp, canvas, fillColor) != TCL_OK) {
 	    return TCL_ERROR;
 	}
-	if (fillStipple != (Tcl_Size) NULL) {
+	if (fillStipple != None) {
 	    Tcl_AppendResult(interp, "clip ", NULL);
 	    if (Tk_PathCanvasPsStipple(interp, canvas, fillStipple) != TCL_OK) {
 		return TCL_ERROR;

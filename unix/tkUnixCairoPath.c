@@ -9,11 +9,6 @@
  *
  */
 
-/* This should go into configure.in but don't know how. */
-#ifdef USE_PANIC_ON_PHOTO_ALLOC_FAILURE
-#undef USE_PANIC_ON_PHOTO_ALLOC_FAILURE
-#endif
-
 #include <cairo.h>
 #include <cairo-xlib.h>
 #include <tkUnixInt.h>
@@ -64,6 +59,7 @@ typedef struct TkPathContext_ {
 				 * 0: not integer width
 				 * 1: odd integer width
 				 * 2: even integer width */
+    cairo_matrix_t  def_matrix;	/* For TkPathResetTMatrix() */
 } TkPathContext_;
 
 static void TkPathPrepareForStroke(TkPathContext ctx, Tk_PathStyle *style);
@@ -72,6 +68,7 @@ static void
 CairoSetFill(TkPathContext ctx, Tk_PathStyle *style)
 {
     TkPathContext_ *context = (TkPathContext_ *) ctx;
+
     /* Patch from Tim Edwards to handle color correctly on 64 bit arch. */
     cairo_set_source_rgba(context->c,
 	    (double)(GetColorFromPathColor(style->fill)->red) / 0xFFFF,
@@ -105,6 +102,7 @@ TkPathInit(Tk_Window tkwin, Drawable d)
     context->surface = surface;
     context->record = NULL;
     context->widthCode = 0;
+    cairo_get_matrix(context->c, &context->def_matrix);
     return (TkPathContext) context;
 }
 
@@ -141,6 +139,8 @@ TkPathInitSurface(Display *display, int width, int height)
     context->c = c;
     context->surface = surface;
     context->record = record;
+    context->widthCode = 0;
+    cairo_get_matrix(context->c, &context->def_matrix);
     return (TkPathContext) context;
 }
 
@@ -149,6 +149,7 @@ TkPathPushTMatrix(TkPathContext ctx, TMatrix *m)
 {
     TkPathContext_ *context = (TkPathContext_ *) ctx;
     cairo_matrix_t matrix;
+
     if (m == NULL) {
 	return;
     }
@@ -157,9 +158,19 @@ TkPathPushTMatrix(TkPathContext ctx, TMatrix *m)
 }
 
 void
+TkPathResetTMatrix(TkPathContext ctx)
+{
+    TkPathContext_ *context = (TkPathContext_ *) ctx;
+
+    context->widthCode = 0;
+    cairo_set_matrix(context->c, &context->def_matrix);
+}
+
+void
 TkPathSaveState(TkPathContext ctx)
 {
     TkPathContext_ *context = (TkPathContext_ *) ctx;
+
     cairo_save(context->c);
 }
 
@@ -167,6 +178,7 @@ void
 TkPathRestoreState(TkPathContext ctx)
 {
     TkPathContext_ *context = (TkPathContext_ *) ctx;
+
     cairo_restore(context->c);
 }
 
@@ -176,13 +188,14 @@ TkPathBeginPath(TkPathContext ctx, Tk_PathStyle *style)
     TkPathContext_ *context = (TkPathContext_ *) ctx;
     int nint;
     double width;
+
     cairo_new_path(context->c);
     if (style->strokeColor == NULL) {
 	context->widthCode = 0;
     } else {
 	width = style->strokeWidth;
 	nint = (int) (width + 0.5);
-	context->widthCode = fabs(width - nint) > 0.01 ? 0 : 2 - nint % 2;
+	context->widthCode = (fabs(width - nint) > 0.01) ? 0 : 2 - nint % 2;
     }
 }
 
@@ -190,6 +203,7 @@ void
 TkPathMoveTo(TkPathContext ctx, double x, double y)
 {
     TkPathContext_ *context = (TkPathContext_ *) ctx;
+
     if (gDepixelize) {
 	x = PATH_DEPIXELIZE(context->widthCode, x);
 	y = PATH_DEPIXELIZE(context->widthCode, y);
@@ -201,6 +215,7 @@ void
 TkPathLineTo(TkPathContext ctx, double x, double y)
 {
     TkPathContext_ *context = (TkPathContext_ *) ctx;
+
     if (gDepixelize) {
 	x = PATH_DEPIXELIZE(context->widthCode, x);
 	y = PATH_DEPIXELIZE(context->widthCode, y);
@@ -240,6 +255,7 @@ TkPathCurveTo(TkPathContext ctx, double x1, double y1,
     double x2, double y2, double x, double y)
 {
     TkPathContext_ *context = (TkPathContext_ *) ctx;
+
     if (gDepixelize) {
 	x = PATH_DEPIXELIZE(context->widthCode, x);
 	y = PATH_DEPIXELIZE(context->widthCode, y);
@@ -254,6 +270,7 @@ TkPathArcTo(TkPathContext ctx,
     char largeArcFlag, char sweepFlag, double x, double y)
 {
     TkPathContext_ *context = (TkPathContext_ *) ctx;
+
     if (gDepixelize) {
 	x = PATH_DEPIXELIZE(context->widthCode, x);
 	y = PATH_DEPIXELIZE(context->widthCode, y);
@@ -266,6 +283,7 @@ void
 TkPathRect(TkPathContext ctx, double x, double y, double width, double height)
 {
     TkPathContext_ *context = (TkPathContext_ *) ctx;
+
     if (gDepixelize) {
 	x = PATH_DEPIXELIZE(context->widthCode, x);
 	y = PATH_DEPIXELIZE(context->widthCode, y);
@@ -277,6 +295,7 @@ void
 TkPathOval(TkPathContext ctx, double cx, double cy, double rx, double ry)
 {
     TkPathContext_ *context = (TkPathContext_ *) ctx;
+
     if (rx == ry) {
 	cairo_move_to(context->c, cx+rx, cy);
 	cairo_arc(context->c, cx, cy, rx, 0.0, 2*M_PI);
@@ -420,9 +439,9 @@ TkPathImage(TkPathContext ctx, Tk_Image image, Tk_PhotoHandle photo,
 		    }
 
 		    /* fix range */
-		    r = r>0xFFFF ? 0xFFFF : r;
-		    g = g>0xFFFF ? 0xFFFF : g;
-		    b = b>0xFFFF ? 0xFFFF : b;
+		    r = (r>0xFFFF) ? 0xFFFF : r;
+		    g = (g>0xFFFF) ? 0xFFFF : g;
+		    b = (b>0xFFFF) ? 0xFFFF : b;
 
 		    /* and put back */
 		    *(dstPtr+dstR) = r >> 8;
@@ -465,9 +484,9 @@ TkPathImage(TkPathContext ctx, Tk_Image image, Tk_PhotoHandle photo,
 		    }
 
 		    /* fix range */
-		    r = r<0 ? 0 : r>255 ? 255 : r;
-		    g = g<0 ? 0 : g>255 ? 255 : g;
-		    b = b<0 ? 0 : b>255 ? 255 : b;
+		    r = (r<0) ? 0 : (r>255) ? 255 : r;
+		    g = (g<0) ? 0 : (g>255) ? 255 : g;
+		    b = (b<0) ? 0 : (b>255) ? 255 : b;
 
 		    /* and put back */
 		    *(dstPtr+dstR) = r;
@@ -570,6 +589,7 @@ void
 TkPathClosePath(TkPathContext ctx)
 {
     TkPathContext_ *context = (TkPathContext_ *) ctx;
+
     cairo_close_path(context->c);
 }
 
@@ -592,7 +612,7 @@ convertTkFontSlant2CairoFontSlant(enum FontSlant slant)
 }
 
 static cairo_font_weight_t
-convertTkFontWeight2CairoFontWeight(enum FontSlant weight)
+convertTkFontWeight2CairoFontWeight(enum FontWeight weight)
 {
     switch(weight) {
 	case PATH_TEXT_WEIGHT_NORMAL: return CAIRO_FONT_WEIGHT_NORMAL;
@@ -602,15 +622,26 @@ convertTkFontWeight2CairoFontWeight(enum FontSlant weight)
 }
 
 static char *
-ckstrdup(const char *str)
+lbstrdup(const char *str, Tcl_DString *dsPtr)
 {
-    unsigned len = strlen(str);
-    char *newstr = ckalloc(len + 1);
-
-    if (newstr != NULL) {
-	strcpy(newstr, str);
+    Tcl_DStringInit(dsPtr);
+    while (str[0] != '\0') {
+	if (str[0] == '\r') {
+	    str++;
+	    if (str[0] != '\n') {
+		Tcl_DStringAppend(dsPtr, "\n", 1);
+		continue;
     }
-    return newstr;
+	}
+	if (str[0] == '\t') {
+	    Tcl_DStringAppend(dsPtr, "  ", 2);
+	    str++;
+	    continue;
+	}
+	Tcl_DStringAppend(dsPtr, str, 1);
+	str++;
+    }
+    return Tcl_DStringValue(dsPtr);
 }
 
 static char *
@@ -621,19 +652,14 @@ linebreak(char *str, char **nextp)
     if (str == NULL) {
 	str = *nextp;
     }
-    str += strspn(str, "\r\n");
+    str += strspn(str, "\n");
     if (*str == '\0') {
 	return NULL;
     }
     ret = str;
-    str += strcspn(str, "\r\n");
+    str += strcspn(str, "\n");
     if (*str) {
-	int ch = *str;
-
 	*str++ = '\0';
-	if ((ch == '\r') && (*str == '\n')) {
-	    str++;
-	}
     }
     *nextp = str;
     return ret;
@@ -645,14 +671,15 @@ multiline_show_text(TkPathContext ctx, double x, double y, double dy,
 {
     TkPathContext_ *context = (TkPathContext_ *) ctx;
     char *token, *savep;
-    char *str = ckstrdup(utf8);
+    Tcl_DString ds;
+    char *str = lbstrdup(utf8, &ds);
 
     for (token = linebreak(str, &savep); token;
 	 token = linebreak(NULL, &savep), y += dy) {
 	cairo_move_to(context->c, x, y);
 	cairo_show_text(context->c, token);
     }
-    ckfree(str);
+    Tcl_DStringFree(&ds);
 }
 
 static void
@@ -661,14 +688,15 @@ multiline_text_path(TkPathContext ctx, double x, double y, double dy,
 {
     TkPathContext_ *context = (TkPathContext_ *) ctx;
     char *token, *savep;
-    char *str = ckstrdup(utf8);
+    Tcl_DString ds;
+    char *str = lbstrdup(utf8, &ds);
 
     for (token = linebreak(str, &savep); token;
 	 token = linebreak(NULL, &savep), y += dy) {
 	cairo_move_to(context->c, x, y);
 	cairo_text_path(context->c, token);
     }
-    ckfree(str);
+    Tcl_DStringFree(&ds);
 }
 
 void
@@ -680,6 +708,14 @@ TkPathTextDraw(TkPathContext ctx, Tk_PathStyle *style,
     cairo_font_extents_t fontExtents;
     int hasStroke = (style->strokeColor != NULL);
     int hasFill = (GetColorFromPathColor(style->fill) != NULL);
+    Tcl_Encoding enc;
+    Tcl_DString ds;
+    char *fullUtf;
+
+    enc = Tcl_GetEncoding(NULL, "utf-8");
+    Tcl_DStringInit(&ds);
+    fullUtf = Tcl_UtfToExternalDString(enc, utf8, -1, &ds);
+    Tcl_FreeEncoding(enc);
 
     cairo_select_font_face(context->c, textStylePtr->fontFamily,
 	    convertTkFontSlant2CairoFontSlant(textStylePtr->fontSlant),
@@ -689,7 +725,7 @@ TkPathTextDraw(TkPathContext ctx, Tk_PathStyle *style,
 
     if (hasStroke && hasFill) {
 	multiline_text_path(ctx, x, y,
-		fontExtents.ascent + fontExtents.descent, utf8);
+		fontExtents.ascent + fontExtents.descent, fullUtf);
 	if (fillOverStroke) {
 	    TkPathPrepareForStroke(ctx, style);
 	    cairo_stroke_preserve(context->c);
@@ -701,12 +737,14 @@ TkPathTextDraw(TkPathContext ctx, Tk_PathStyle *style,
     } else if (hasFill) {
 	CairoSetFill(ctx, style);
 	multiline_show_text(ctx, x, y,
-		fontExtents.ascent + fontExtents.descent, utf8);
+		fontExtents.ascent + fontExtents.descent, fullUtf);
     } else if (hasStroke) {
 	multiline_text_path(ctx, x, y,
-		fontExtents.ascent + fontExtents.descent, utf8);
+		fontExtents.ascent + fontExtents.descent, fullUtf);
 	TkPathStroke(ctx, style);
     }
+
+    Tcl_DStringFree(&ds);
 }
 
 void
@@ -717,7 +755,7 @@ TkPathTextFree(Tk_PathTextStyle *textStylePtr, void *custom)
 
 PathRect
 TkPathTextMeasureBbox(Display *display, Tk_PathTextStyle *textStylePtr,
-    char *utf8, void *custom)
+    char *utf8, double *lineSpacing, void *custom)
 {
     cairo_t *c;
     cairo_surface_t *surface;
@@ -727,7 +765,14 @@ TkPathTextMeasureBbox(Display *display, Tk_PathTextStyle *textStylePtr,
     int lc;
     char *token, *savep;
     double x;
-    char *str = ckstrdup(utf8);
+    Tcl_Encoding enc;
+    Tcl_DString ds;
+    char *fullUtf;
+
+    enc = Tcl_GetEncoding(NULL, "utf-8");
+    Tcl_DStringInit(&ds);
+    fullUtf = Tcl_UtfToExternalDString(enc, utf8, -1, &ds);
+    Tcl_FreeEncoding(enc);
 
     /*
      * @@@ Not very happy about this but it seems that there is no way to
@@ -743,7 +788,7 @@ TkPathTextMeasureBbox(Display *display, Tk_PathTextStyle *textStylePtr,
     cairo_font_extents(c, &fontExtents);
 
     r.x2 = 0.0;
-    for (lc = 0, token = linebreak(str, &savep); token;
+    for (lc = 0, token = linebreak(fullUtf, &savep); token;
 	 lc++, token = linebreak(NULL, &savep)) {
 	cairo_text_extents(c, token, &extents);
 	x = extents.x_bearing + extents.width;
@@ -754,9 +799,13 @@ TkPathTextMeasureBbox(Display *display, Tk_PathTextStyle *textStylePtr,
     r.x1 = 0.0;
     r.y2 = lc * (fontExtents.ascent + fontExtents.descent) - fontExtents.ascent;
 
+    if (lineSpacing != NULL) {
+	*lineSpacing = fontExtents.ascent + fontExtents.descent;
+    }
+
     cairo_destroy(c);
     cairo_surface_destroy(surface);
-    ckfree(str);
+    Tcl_DStringFree(&ds);
 
     return r;
 }
@@ -816,7 +865,10 @@ TkPathSurfaceToPhoto(Tcl_Interp *interp, TkPathContext ctx,
     stride = context->record->stride;
 
     Tk_PhotoGetImage(photo, &block);
-    pixel = (unsigned char *) ckalloc(height*stride);
+    pixel = (unsigned char *) attemptckalloc(height*stride);
+    if (pixel == NULL) {
+	return;
+    }
 
     if (gSurfaceCopyPremultiplyAlpha) {
 	if (!kEndianess.set) {
@@ -850,6 +902,7 @@ TkPathSurfaceToPhoto(Tcl_Interp *interp, TkPathContext ctx,
     block.offset[3] = 3;
     Tk_PhotoPutBlock(interp, photo, &block, 0, 0, width, height,
 	    TK_PHOTO_COMPOSITE_OVERLAY);
+    ckfree((char *) pixel);
 }
 
 void
@@ -914,6 +967,9 @@ TkPathPrepareForStroke(TkPathContext ctx, Tk_PathStyle *style)
 	    dashes[i] = dashPtr->array[i] * style->strokeWidth;
 	}
 	cairo_set_dash(context->c, dashes, dashPtr->number, style->offset);
+	ckfree((char *) dashes);
+    } else {
+	cairo_set_dash(context->c, NULL, 0, 0);
     }
 }
 
@@ -921,6 +977,7 @@ void
 TkPathStroke(TkPathContext ctx, Tk_PathStyle *style)
 {
     TkPathContext_ *context = (TkPathContext_ *) ctx;
+
     TkPathPrepareForStroke(ctx, style);
     cairo_stroke(context->c);
 }
@@ -929,6 +986,7 @@ void
 TkPathFill(TkPathContext ctx, Tk_PathStyle *style)
 {
     TkPathContext_ *context = (TkPathContext_ *) ctx;
+
     CairoSetFill(ctx, style);
     cairo_fill(context->c);
 }
@@ -937,6 +995,7 @@ void
 TkPathFillAndStroke(TkPathContext ctx, Tk_PathStyle *style)
 {
     TkPathContext_ *context = (TkPathContext_ *) ctx;
+
     CairoSetFill(ctx, style);
     cairo_fill_preserve(context->c);
     TkPathStroke(ctx, style);
@@ -952,6 +1011,7 @@ void
 TkPathFree(TkPathContext ctx)
 {
     TkPathContext_ *context = (TkPathContext_ *) ctx;
+
     cairo_destroy(context->c);
     cairo_surface_destroy(context->surface);
     if (context->record) {
@@ -977,6 +1037,7 @@ int
 TkPathGetCurrentPosition(TkPathContext ctx, PathPoint *pt)
 {
     TkPathContext_ *context = (TkPathContext_ *) ctx;
+
     cairo_get_current_point(context->c, &(pt->x), &(pt->y));
     return TCL_OK;
 }
@@ -1021,13 +1082,19 @@ void TkPathPaintLinearGradient(TkPathContext ctx, PathRect *bbox,
     GradientStopArray *stopArrPtr;
     cairo_pattern_t *pattern;
 
+    if (fillPtr->units == kPathGradientUnitsBoundingBox) {
+	if (bbox->x2 - bbox->x1 == 0 || bbox->y2 - bbox->y1 == 0) {
+	    return;
+	}
+    }
+
     stopArrPtr = fillPtr->stopArrPtr;
     tPtr = fillPtr->transitionPtr;
     nstops = stopArrPtr->nstops;
 
     /*
      * The current path is consumed by filling.
-     * Need therfore to save the current context and restore after.
+     * Need therefore to save the current context and restore after.
      */
     cairo_save(context->c);
 
@@ -1062,7 +1129,7 @@ void TkPathPaintLinearGradient(TkPathContext ctx, PathRect *bbox,
 	    (fillRule == WindingRule) ? CAIRO_FILL_RULE_WINDING :
 		CAIRO_FILL_RULE_EVEN_ODD);
     cairo_pattern_set_extend(pattern, GetCairoExtend(fillPtr->method));
-    cairo_fill(context->c);
+    cairo_fill_preserve(context->c);
 
     cairo_pattern_destroy(pattern);
     cairo_restore(context->c);
@@ -1081,13 +1148,19 @@ TkPathPaintRadialGradient(TkPathContext ctx, PathRect *bbox,
     GradientStopArray *stopArrPtr;
     RadialTransition *tPtr;
 
+    if (fillPtr->units == kPathGradientUnitsBoundingBox) {
+	if (bbox->x2 - bbox->x1 == 0 || bbox->y2 - bbox->y1 == 0) {
+	    return;
+	}
+    }
+
     stopArrPtr = fillPtr->stopArrPtr;
     nstops = stopArrPtr->nstops;
     tPtr = fillPtr->radialPtr;
 
     /*
      * The current path is consumed by filling.
-     * Need therfore to save the current context and restore after.
+     * Need therefore to save the current context and restore after.
      */
     cairo_save(context->c);
     pattern = cairo_pattern_create_radial(
@@ -1118,10 +1191,16 @@ TkPathPaintRadialGradient(TkPathContext ctx, PathRect *bbox,
 	    (fillRule == WindingRule) ? CAIRO_FILL_RULE_WINDING :
 		CAIRO_FILL_RULE_EVEN_ODD);
     cairo_pattern_set_extend(pattern, GetCairoExtend(fillPtr->method));
-    cairo_fill(context->c);
+    cairo_fill_preserve(context->c);
 
     cairo_pattern_destroy(pattern);
     cairo_restore(context->c);
+}
+
+int
+TkPathSetup(Tcl_Interp *interp)
+{
+    return TCL_OK;
 }
 
 /*

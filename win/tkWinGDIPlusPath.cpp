@@ -7,11 +7,6 @@
  *
  */
 
-/* This should go into configure.in but don't know how. */
-#ifdef USE_PANIC_ON_PHOTO_ALLOC_FAILURE
-#undef USE_PANIC_ON_PHOTO_ALLOC_FAILURE
-#endif
-
 #include <tkWinInt.h>
 #include "tkPath.h"
 #include "tkIntPath.h"
@@ -58,9 +53,6 @@ TCL_DECLARE_MUTEX(sGdiplusMutex)
 static int sGdiplusStarted;
 static ULONG_PTR sGdiplusToken;
 static GdiplusStartupOutput sGdiplusStartupOutput;
-
-static void InitGDIplus(void);
-
 static void PathExit(ClientData clientData);
 
 /*
@@ -74,6 +66,7 @@ class PathC {
     ~PathC(void);
 
     void PushTMatrix(TMatrix *m);
+    void ResetTMatrix();
     void SaveState();
     void RestoreState();
     void BeginPath(Tk_PathStyle *style);
@@ -108,8 +101,7 @@ class PathC {
     GraphicsContainer   mContainerStack[10];
     int                 mCointainerTop;
 
-    static Pen* PathCreatePen(Tk_PathStyle *style);
-    static SolidBrush* PathCreateBrush(Tk_PathStyle *style);
+    static void PathInitPen(Tk_PathStyle *style, Pen *penPtr);
 };
 
 typedef struct PathSurfaceGDIpRecord {
@@ -131,32 +123,16 @@ typedef struct TkPathContext_ {
     PathSurfaceGDIpRecord *    surface;    /* NULL unless surface. */
 } TkPathContext_;
 
-void
-InitGDIplus(void)
-{
-    Tcl_MutexLock(&sGdiplusMutex);
-    if (!sGdiplusStarted) {
-        GdiplusStartupInput gdiplusStartupInput;
-
-        GdiplusStartup(&sGdiplusToken, &gdiplusStartupInput,
-                       &sGdiplusStartupOutput);
-        Tcl_CreateExitHandler(PathExit, NULL);
-        sGdiplusStarted = 1;
-    }
-    Tcl_MutexUnlock(&sGdiplusMutex);
-}
 
 PathC::PathC(HDC hdc)
 {
-    if (!sGdiplusStarted) {
-        InitGDIplus();
-    }
     mMemHdc = hdc;
     mGraphics = new Graphics(mMemHdc);
-    mPath = NULL;
+    mPath = new GraphicsPath(FillModeWinding);
     mCointainerTop = 0;
     if (gAntiAlias) {
         mGraphics->SetSmoothingMode(SmoothingModeAntiAlias);
+        mGraphics->SetTextRenderingHint(TextRenderingHintAntiAlias);
     }
     return;
 }
@@ -165,6 +141,7 @@ inline
 PathC::~PathC(void)
 {
     if (mPath) {
+        mPath->Reset();
         delete mPath;
     }
     if (mGraphics) {
@@ -172,18 +149,13 @@ PathC::~PathC(void)
     }
 }
 
-Pen *
-PathC::PathCreatePen(Tk_PathStyle *style)
+inline void
+PathC::PathInitPen(Tk_PathStyle *style, Pen *penPtr)
 {
     LineCap     cap;
     DashCap     dashCap;
     LineJoin     lineJoin;
-    Pen        *penPtr;
     Tk_PathDash *dashPtr;
-
-    penPtr = new Pen(MakeGDIPlusColor(style->strokeColor,
-                                      style->strokeOpacity),
-                     (float) style->strokeWidth);
 
     cap     = static_cast<LineCap>(TableLookup(LineCapStyleLookupTable,
                                                4, style->capStyle));
@@ -199,20 +171,11 @@ PathC::PathCreatePen(Tk_PathStyle *style)
 
     dashPtr = style->dashPtr;
     if ((dashPtr != NULL) && (dashPtr->number != 0)) {
-        penPtr->SetDashPattern(dashPtr->array, dashPtr->number);
         penPtr->SetDashOffset((float) style->offset);
+        penPtr->SetDashPattern(dashPtr->array, dashPtr->number);
+    } else {
+        penPtr->SetDashStyle(DashStyleSolid);
     }
-    return penPtr;
-}
-
-inline SolidBrush *
-PathC::PathCreateBrush(Tk_PathStyle *style)
-{
-    SolidBrush     *brushPtr;
-    brushPtr =
-       new SolidBrush(MakeGDIPlusColor(GetColorFromPathColor(style->fill),
-                                       style->fillOpacity));
-    return brushPtr;
 }
 
 inline void
@@ -221,6 +184,12 @@ PathC::PushTMatrix(TMatrix *tm)
     Matrix m(float(tm->a), float(tm->b), float(tm->c), float(tm->d),
              float(tm->tx), float(tm->ty));
     mGraphics->MultiplyTransform(&m);
+}
+
+inline void
+PathC::ResetTMatrix()
+{
+    mGraphics->ResetTransform();
 }
 
 inline void
@@ -239,6 +208,7 @@ PathC::SaveState()
     mCointainerTop++;
     if (gAntiAlias) {
         mGraphics->SetSmoothingMode(SmoothingModeAntiAlias);
+        mGraphics->SetTextRenderingHint(TextRenderingHintAntiAlias);
     }
 }
 
@@ -252,7 +222,8 @@ PathC::RestoreState()
 inline void
 PathC::BeginPath(Tk_PathStyle *style)
 {
-    mPath = new GraphicsPath((style->fillRule == WindingRule) ?
+    mPath->Reset();
+    mPath->SetFillMode((style->fillRule == WindingRule) ?
                              FillModeWinding : FillModeAlternate);
 }
 
@@ -461,7 +432,8 @@ PathC::DrawImage(Tk_PhotoHandle photo, float x, float y,
     }
     mGraphics->SetInterpolationMode(canvasInterpolationToGdiPlusInterpolation(interpolation));
     Bitmap bitmap(iwidth, iheight, stride, format, (BYTE *)ptr);
-    mGraphics->DrawImage(&bitmap, RectF(x, y, width, height), srcX, srcY, srcWidth, srcHeight, UnitPixel, &imageAttrs);
+    mGraphics->DrawImage(&bitmap, RectF(x, y, width, height),
+            srcX, srcY, srcWidth, srcHeight, UnitPixel, &imageAttrs);
 
     if (data) {
         ckfree((char *)data);
@@ -492,10 +464,12 @@ toWCharDS(const char *utf8, Tcl_DString *ds)
 {
     int length = strlen(utf8);
     const char *p = utf8;
+    Tcl_UniChar ch = 0;
+
     while (p < utf8 + length) {
-        Tcl_UniChar ch;
         WCHAR wch;
         int next = Tcl_UtfToUniChar(p, &ch);
+
 #if TCL_UTF_MAX >= 4
         if (ch > 0xffff) {
             wch = (((ch - 0x10000) >> 10) & 0x3ff) | 0xd800;
@@ -532,6 +506,7 @@ PathC::DrawString(Tk_PathStyle *style, Tk_PathTextStyle *textStylePtr,
 {
     Tcl_DString ds, dsFont;
     WCHAR *wcPtr, *endPtr;
+    float ascent, spacing;
 
     Tcl_DStringInit(&dsFont);
     FontFamily fontFamily((const WCHAR *)
@@ -550,6 +525,13 @@ PathC::DrawString(Tk_PathStyle *style, Tk_PathTextStyle *textStylePtr,
     Tcl_DStringInit(&ds);
     wcPtr = toWCharDS(utf8, &ds);
     endPtr = wcPtr + Tcl_DStringLength(&ds) / sizeof (WCHAR);
+    ascent = font.GetSize() *
+             fontFamily.GetCellAscent(fontStyle) /
+             fontFamily.GetEmHeight(fontStyle);
+    spacing = font.GetSize() *
+              (fontFamily.GetCellAscent(fontStyle) +
+               fontFamily.GetCellDescent(fontStyle)) /
+              fontFamily.GetEmHeight(fontStyle);
     while (wcPtr < endPtr) {
         WCHAR *brkPtr = wcPtr;
         while (brkPtr < endPtr) {
@@ -564,34 +546,37 @@ PathC::DrawString(Tk_PathStyle *style, Tk_PathTextStyle *textStylePtr,
          * See GDI+ docs and the FontFamily for translating between
          * design units and pixels.
          */
-        float ascentPixels = font.GetSize() *
-            fontFamily.GetCellAscent(fontStyle) /
-            fontFamily.GetEmHeight(fontStyle);
-        PointF point(x, y - ascentPixels);
-        if (gAntiAlias) {
-            mGraphics->SetTextRenderingHint(TextRenderingHintAntiAlias);
-        }
-        if (!fillOverStroke && GetColorFromPathColor(style->fill) != NULL) {
-            SolidBrush *brush = PathCreateBrush(style);
-            mGraphics->DrawString(wcPtr, brkPtr - wcPtr, &font, point, brush);
-            delete brush;
+        PointF point(x, y - ascent);
+        if (!fillOverStroke && GetColorFromPathColor(style->fill) != NULL &&
+            style->strokeColor == NULL) {
+            SolidBrush brush(
+                MakeGDIPlusColor(GetColorFromPathColor(style->fill),
+                                 style->fillOpacity));
+            mGraphics->DrawString(wcPtr, brkPtr - wcPtr, &font, point,
+                    StringFormat::GenericTypographic(), &brush);
         }
         if (style->strokeColor != NULL) {
-            Pen *pen = PathCreatePen(style);
             mPath->AddString(wcPtr, brkPtr - wcPtr, &fontFamily, fontStyle,
-                             (float) textStylePtr->fontSize, point, NULL);
-            mGraphics->DrawPath(pen, mPath);
-            delete pen;
+                    (float) textStylePtr->fontSize, point,
+                    StringFormat::GenericTypographic());
+            if (!fillOverStroke && GetColorFromPathColor(style->fill) != NULL) {
+                SolidBrush brush(
+                    MakeGDIPlusColor(GetColorFromPathColor(style->fill),
+                                     style->fillOpacity));
+                mGraphics->FillPath(&brush, mPath);
+            }
+            Pen pen(MakeGDIPlusColor(style->strokeColor, style->strokeOpacity),
+                                     (float) style->strokeWidth);
+            PathInitPen(style, &pen);
+            mGraphics->DrawPath(&pen, mPath);
+            if (fillOverStroke && GetColorFromPathColor(style->fill) != NULL) {
+                SolidBrush brush(
+                    MakeGDIPlusColor(GetColorFromPathColor(style->fill),
+                                     style->fillOpacity));
+                mGraphics->FillPath(&brush, mPath);
+            }
         }
-        if (fillOverStroke && GetColorFromPathColor(style->fill) != NULL) {
-            SolidBrush *brush = PathCreateBrush(style);
-            mGraphics->DrawString(wcPtr, brkPtr - wcPtr, &font, point, brush);
-            delete brush;
-        }
-        y += font.GetSize() *
-            (fontFamily.GetCellAscent(fontStyle) +
-             fontFamily.GetCellDescent(fontStyle)) /
-            fontFamily.GetEmHeight(fontStyle);
+        y += spacing;
         wcPtr = brkPtr + 1;
     }
     Tcl_DStringFree(&ds);
@@ -608,28 +593,34 @@ PathC::CloseFigure()
 inline void
 PathC::Stroke(Tk_PathStyle *style)
 {
-    Pen *pen = PathCreatePen(style);
-    mGraphics->DrawPath(pen, mPath);
-    delete pen;
+    Pen pen(MakeGDIPlusColor(style->strokeColor,
+                             style->strokeOpacity),
+            (float) style->strokeWidth);
+    PathInitPen(style, &pen);
+    mGraphics->DrawPath(&pen, mPath);
 }
 
 inline void
 PathC::Fill(Tk_PathStyle *style)
 {
-    SolidBrush *brush = PathCreateBrush(style);
-    mGraphics->FillPath(brush, mPath);
-    delete brush;
+    SolidBrush brush(
+        MakeGDIPlusColor(GetColorFromPathColor(style->fill),
+                         style->fillOpacity));
+    mGraphics->FillPath(&brush, mPath);
 }
 
 inline void
 PathC::FillAndStroke(Tk_PathStyle *style)
 {
-    Pen         *pen = PathCreatePen(style);
-    SolidBrush     *brush = PathCreateBrush(style);
-    mGraphics->FillPath(brush, mPath);
-    mGraphics->DrawPath(pen, mPath);
-    delete pen;
-    delete brush;
+    Pen pen(MakeGDIPlusColor(style->strokeColor,
+                             style->strokeOpacity),
+            (float) style->strokeWidth);
+    PathInitPen(style, &pen);
+    SolidBrush brush(
+        MakeGDIPlusColor(GetColorFromPathColor(style->fill),
+                         style->fillOpacity));
+    mGraphics->FillPath(&brush, mPath);
+    mGraphics->DrawPath(&pen, mPath);
 }
 
 inline void
@@ -941,6 +932,26 @@ PathC::FillRadialGradient(PathRect *bbox, /* The items bbox box in untransformed
 }
 
 /*
+ * Init procedure for Tcl.
+ */
+
+int
+TkPathSetup(Tcl_Interp *interp)
+{
+    Tcl_MutexLock(&sGdiplusMutex);
+    if (!sGdiplusStarted) {
+        GdiplusStartupInput gdiplusStartupInput;
+
+        GdiplusStartup(&sGdiplusToken, &gdiplusStartupInput,
+                       &sGdiplusStartupOutput);
+        Tcl_CreateExitHandler(PathExit, NULL);
+        sGdiplusStarted = 1;
+    }
+    Tcl_MutexUnlock(&sGdiplusMutex);
+    return TCL_OK;
+}
+
+/*
  * Exit procedure for Tcl.
  */
 
@@ -1049,6 +1060,13 @@ TkPathPushTMatrix(TkPathContext ctx, TMatrix *m)
         return;
     }
     context->c->PushTMatrix(m);
+}
+
+void
+TkPathResetTMatrix(TkPathContext ctx)
+{
+    TkPathContext_ *context = (TkPathContext_ *) ctx;
+    context->c->ResetTMatrix();
 }
 
 void
@@ -1196,7 +1214,7 @@ TkPathTextFree(Tk_PathTextStyle *textStylePtr, void *custom)
 
 PathRect
 TkPathTextMeasureBbox(Display *display, Tk_PathTextStyle *textStylePtr,
-                      char *utf8, void *custom)
+                      char *utf8, double *lineSpacing, void *custom)
 {
     HDC memHdc;
     Tcl_DString ds, dsFont;
@@ -1204,12 +1222,9 @@ TkPathTextMeasureBbox(Display *display, Tk_PathTextStyle *textStylePtr,
     PointF origin(0.0f, 0.0f);
     RectF bounds;
     PathRect r = {-1, -1, -1, -1};
-    double ascent;
+    float ascent, spacing;
     Graphics *graphics = NULL;
 
-    if (!sGdiplusStarted) {
-        InitGDIplus();
-    }
     memHdc = CreateCompatibleDC(NULL);
     /*
      * @@@ I thought this was needed but seems not.
@@ -1217,6 +1232,10 @@ TkPathTextMeasureBbox(Display *display, Tk_PathTextStyle *textStylePtr,
      *     SelectObject(memHdc, bm);
      */
     graphics = new Graphics(memHdc);
+    if (gAntiAlias) {
+        graphics->SetSmoothingMode(SmoothingModeAntiAlias);
+        graphics->SetTextRenderingHint(TextRenderingHintAntiAlias);
+    }
 
     Tcl_DStringInit(&dsFont);
     FontFamily fontFamily((const WCHAR *)
@@ -1238,9 +1257,14 @@ TkPathTextMeasureBbox(Display *display, Tk_PathTextStyle *textStylePtr,
     ascent = font.GetSize() *
         fontFamily.GetCellAscent(fontStyle) /
         fontFamily.GetEmHeight(fontStyle);
+    spacing = font.GetSize() *
+            (fontFamily.GetCellAscent(fontStyle) +
+             fontFamily.GetCellDescent(fontStyle)) /
+            fontFamily.GetEmHeight(fontStyle);
     r.x1 = 0.0;
     r.x2 = 0.0;
     r.y1 = -ascent;
+    r.y2 = 0.0;
     while (wcPtr < endPtr) {
         WCHAR *brkPtr = wcPtr;
         while (brkPtr < endPtr) {
@@ -1249,17 +1273,20 @@ TkPathTextMeasureBbox(Display *display, Tk_PathTextStyle *textStylePtr,
             }
             ++brkPtr;
         }
-        graphics->MeasureString(wcPtr, brkPtr - wcPtr, &font, origin, &bounds);
+        graphics->MeasureString(wcPtr, brkPtr - wcPtr, &font, origin,
+                StringFormat::GenericTypographic(), &bounds);
         if (bounds.Width > r.x2) {
             r.x2 = bounds.Width;
         }
-        r.y2 += font.GetSize() *
-            (fontFamily.GetCellAscent(fontStyle) +
-             fontFamily.GetCellDescent(fontStyle)) /
-            fontFamily.GetEmHeight(fontStyle);
+        r.y2 += spacing;
         wcPtr = brkPtr + 1;
     }
     r.y2 -= ascent;
+
+    if (lineSpacing != NULL) {
+        *lineSpacing = spacing;
+    }
+
     Tcl_DStringFree(&ds);
     delete graphics;
     // DeleteObject(bm);
@@ -1321,7 +1348,10 @@ TkPathSurfaceToPhoto(Tcl_Interp *interp, TkPathContext ctx,
     bytesPerRow = surface->bytesPerRow;
 
     Tk_PhotoGetImage(photo, &block);
-    pixel = (unsigned char *)ckalloc(height*bytesPerRow);
+    pixel = (unsigned char *)attemptckalloc(height*bytesPerRow);
+    if (pixel == NULL) {
+        return;
+    }
     if (gSurfaceCopyPremultiplyAlpha) {
         PathCopyBitsPremultipliedAlphaBGRA(data, pixel, width, height,
                                            bytesPerRow);
@@ -1339,6 +1369,7 @@ TkPathSurfaceToPhoto(Tcl_Interp *interp, TkPathContext ctx,
     block.offset[3] = 3;
     Tk_PhotoPutBlock(interp, photo, &block, 0, 0, width, height,
                      TK_PHOTO_COMPOSITE_OVERLAY);
+    ckfree((char *) pixel);
 }
 
 void

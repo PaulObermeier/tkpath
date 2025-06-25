@@ -150,9 +150,9 @@ static Tk_OptionSpec optionSpecs[] = {
 	0, 0, 0},				/* Do not use TK_OPTION_NULL_OK
 						 * here since the text layout
 						 * goes crazy! */
-    {TK_OPTION_INDEX, "-underline", NULL, NULL,
-	"-1", TCL_INDEX_NONE, offsetof(TextItem, underline),
-	0, NULL, 0},
+    {TK_OPTION_INT, "-underline", NULL, NULL,
+	"-1", -1, offsetof(TextItem, underline),
+	0, 0, 0},
     {TK_OPTION_PIXELS, "-width", NULL, NULL,
         "0", -1, offsetof(TextItem, width), 0, 0, 0},
     {TK_OPTION_END, NULL, NULL, NULL,
@@ -217,7 +217,7 @@ static void		TranslateText(Tk_PathCanvas canvas,
  * functions that can be invoked by generic item code.
  */
 
-Tk_PathItemType tkTextType = {
+Tk_PathItemType tkpTextType = {
     "text",			/* name */
     sizeof(TextItem),		/* itemSize */
     CreateText,			/* createProc */
@@ -242,6 +242,7 @@ Tk_PathItemType tkTextType = {
     TextInsert,			/* insertProc */
     TextDeleteChars,		/* dTextProc */
     NULL,			/* nextPtr */
+    0,				/* isPathType */
 };
 
 #define ROUND(d) ((int) floor((d) + 0.5))
@@ -274,7 +275,7 @@ CreateText(
     Tcl_Obj *const objv[])	/* Arguments describing rectangle. */
 {
     TextItem *textPtr = (TextItem *) itemPtr;
-    Tcl_Size i;
+    int i;
     Tk_OptionTable optionTable;
 
     if (objc == 0) {
@@ -295,9 +296,9 @@ CreateText(
     textPtr->disabledColor = NULL;
     textPtr->tkfont	= NULL;
     textPtr->justify	= TK_JUSTIFY_LEFT;
-    textPtr->stipple	= (Tcl_Size) NULL;
-    textPtr->activeStipple = (Tcl_Size) NULL;
-    textPtr->disabledStipple = (Tcl_Size) NULL;
+    textPtr->stipple	= None;
+    textPtr->activeStipple = None;
+    textPtr->disabledStipple = None;
     textPtr->text	= NULL;
     textPtr->width	= 0;
     textPtr->underline	= -1;
@@ -375,8 +376,9 @@ TextCoords(
     Tcl_Obj *const objv[])	/* Array of coordinates: x1, y1, x2, y2, ... */
 {
     TextItem *textPtr = (TextItem *) itemPtr;
+    Tcl_Size myobjc = objc;
 
-    if (objc == 0) {
+    if (myobjc == 0) {
 	Tcl_Obj *obj = Tcl_NewObj();
 	Tcl_Obj *subobj = Tcl_NewDoubleObj(textPtr->x);
 
@@ -384,13 +386,13 @@ TextCoords(
 	subobj = Tcl_NewDoubleObj(textPtr->y);
 	Tcl_ListObjAppendElement(interp, obj, subobj);
 	Tcl_SetObjResult(interp, obj);
-    } else if (objc < 3) {
-	if (objc==1) {
-	    if (Tcl_ListObjGetElements(interp, objv[0], &objc,
+    } else if (myobjc < 3) {
+	if (myobjc==1) {
+	    if (Tcl_ListObjGetElements(interp, objv[0], &myobjc,
 		    (Tcl_Obj ***) &objv) != TCL_OK) {
 		return TCL_ERROR;
-	    } else if (objc != 2) {
-                return TkpWrongNumberOfCoordinates(interp, 2, 2, objc);
+	    } else if (myobjc != 2) {
+                return TkpWrongNumberOfCoordinates(interp, 2, 2, myobjc);
 	    }
 	}
 	if ((Tk_PathCanvasGetCoordFromObj(interp, canvas, objv[0],
@@ -401,7 +403,7 @@ TextCoords(
 	}
 	ComputeTextBbox(canvas, textPtr);
     } else {
-        return TkpWrongNumberOfCoordinates(interp, 0, 2, objc);
+        return TkpWrongNumberOfCoordinates(interp, 0, 2, myobjc);
     }
     return TCL_OK;
 }
@@ -458,7 +460,7 @@ ConfigureText(
 
     state = itemPtr->state;
 
-    if (textPtr->activeColor != NULL || textPtr->activeStipple != (Tcl_Size) NULL) {
+    if (textPtr->activeColor != NULL || textPtr->activeStipple != None) {
 	itemPtr->redraw_flags |= TK_ITEM_STATE_DEPENDANT;
     } else {
 	itemPtr->redraw_flags &= ~TK_ITEM_STATE_DEPENDANT;
@@ -474,14 +476,14 @@ ConfigureText(
 	if (textPtr->activeColor!=NULL) {
 	    color = textPtr->activeColor;
 	}
-	if (textPtr->activeStipple!=(Tcl_Size) NULL) {
+	if (textPtr->activeStipple!=None) {
 	    stipple = textPtr->activeStipple;
 	}
     } else if (state == TK_PATHSTATE_DISABLED) {
 	if (textPtr->disabledColor!=NULL) {
 	    color = textPtr->disabledColor;
 	}
-	if (textPtr->disabledStipple!=(Tcl_Size) NULL) {
+	if (textPtr->disabledStipple!=None) {
 	    stipple = textPtr->disabledStipple;
 	}
     }
@@ -493,7 +495,7 @@ ConfigureText(
 	if (color != NULL) {
 	    gcValues.foreground = color->pixel;
 	    mask |= GCForeground;
-	    if (stipple != (Tcl_Size) NULL) {
+	    if (stipple != None) {
 		gcValues.stipple = stipple;
 		gcValues.fill_style = FillStippled;
 		mask |= GCStipple|GCFillStyle;
@@ -501,7 +503,7 @@ ConfigureText(
 	    newGC = Tk_GetGC(tkwin, mask, &gcValues);
 	}
 	mask &= ~(GCTile|GCFillStyle|GCStipple);
-	if (stipple != (Tcl_Size) NULL) {
+	if (stipple != None) {
 	    gcValues.stipple = stipple;
 	    gcValues.fill_style = FillStippled;
 	    mask |= GCStipple|GCFillStyle;
@@ -697,8 +699,10 @@ ComputeTextBbox(
 	    dy[i] = -height;
 	}
 	break;
+#if TK_MAJOR_VERSION >= 9
     case TK_ANCHOR_NULL:
 	break;
+#endif
     }
     switch (textPtr->anchor) {
     case TK_ANCHOR_NW:
@@ -723,8 +727,10 @@ ComputeTextBbox(
 	    dx[i] = -width;
 	}
 	break;
+#if TK_MAJOR_VERSION >= 9
     case TK_ANCHOR_NULL:
 	break;
+#endif
     }
 
     textPtr->actualWidth = width;
@@ -833,11 +839,11 @@ DisplayCanvText(
     }
     stipple = textPtr->stipple;
     if (((TkPathCanvas *)canvas)->currentItemPtr == itemPtr) {
-	if (textPtr->activeStipple!=(Tcl_Size) NULL) {
+	if (textPtr->activeStipple!=None) {
 	    stipple = textPtr->activeStipple;
 	}
     } else if (state == TK_PATHSTATE_DISABLED) {
-	if (textPtr->disabledStipple!=(Tcl_Size) NULL) {
+	if (textPtr->disabledStipple!=None) {
 	    stipple = textPtr->disabledStipple;
 	}
     }
@@ -852,7 +858,7 @@ DisplayCanvText(
      * read-only.
      */
 
-    if (stipple != (Tcl_Size) NULL) {
+    if (stipple != None) {
 	Tk_PathCanvasSetOffset(canvas, textPtr->gc, textPtr->tsoffsetPtr);
     }
 
@@ -997,7 +1003,7 @@ DisplayCanvText(
 	    textPtr->textLayout, drawableX, drawableY, textPtr->angle,
 	    textPtr->underline);
 
-    if (stipple != (Tcl_Size) NULL) {
+    if (stipple != None) {
 	XSetTSOrigin(display, textPtr->gc, 0, 0);
     }
 }
@@ -1285,7 +1291,6 @@ TextToArea(
  *--------------------------------------------------------------
  */
 
-	/* ARGSUSED */
 static void
 ScaleText(
     Tk_PathCanvas canvas,	/* Canvas containing rectangle. */
@@ -1455,7 +1460,6 @@ GetTextIndex(
  *--------------------------------------------------------------
  */
 
-	/* ARGSUSED */
 static void
 SetTextCursor(
     Tk_PathCanvas canvas,	/* Record describing canvas widget. */
@@ -1660,13 +1664,17 @@ TextToPostscript(
     case TK_ANCHOR_SW:	   x = 0; y = 2; break;
     case TK_ANCHOR_W:	   x = 0; y = 1; break;
     case TK_ANCHOR_CENTER: x = 1; y = 1; break;
+#if TK_MAJOR_VERSION >= 9
     case TK_ANCHOR_NULL:                 break;
+#endif
     }
     switch (textPtr->justify) {
     case TK_JUSTIFY_LEFT:   justify = "0";   break;
     case TK_JUSTIFY_CENTER: justify = "0.5"; break;
     case TK_JUSTIFY_RIGHT:  justify = "1";   break;
+#if TK_MAJOR_VERSION >= 9
     case TK_JUSTIFY_NULL:                    break;
+#endif
     }
 
     Tk_GetFontMetrics(textPtr->tkfont, &fm);

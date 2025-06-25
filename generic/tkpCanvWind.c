@@ -129,7 +129,7 @@ static int		CanvasPsWindow(Tcl_Interp *interp,
  * that can be invoked by generic item code.
  */
 
-Tk_PathItemType tkWindowType = {
+Tk_PathItemType tkpWindowType = {
     "window",			/* name */
     sizeof(WindowItem),		/* itemSize */
     CreateWinItem,		/* createProc */
@@ -154,6 +154,7 @@ Tk_PathItemType tkWindowType = {
     NULL,			/* insertProc */
     NULL,			/* dTextProc */
     NULL,			/* nextPtr */
+    0,				/* isPathType */
 };
 
 /*
@@ -274,21 +275,22 @@ WinItemCoords(
     Tcl_Obj *const objv[])	/* Array of coordinates: x1, y1, x2, y2, ... */
 {
     WindowItem *winItemPtr = (WindowItem *) itemPtr;
+    Tcl_Size myobjc = objc;
 
-    if (objc == 0) {
+    if (myobjc == 0) {
 	Tcl_Obj *obj = Tcl_NewObj();
 	Tcl_Obj *subobj = Tcl_NewDoubleObj(winItemPtr->x);
 	Tcl_ListObjAppendElement(interp, obj, subobj);
 	subobj = Tcl_NewDoubleObj(winItemPtr->y);
 	Tcl_ListObjAppendElement(interp, obj, subobj);
 	Tcl_SetObjResult(interp, obj);
-    } else if (objc < 3) {
-	if (objc==1) {
-	    if (Tcl_ListObjGetElements(interp, objv[0], &objc,
+    } else if (myobjc < 3) {
+	if (myobjc==1) {
+	    if (Tcl_ListObjGetElements(interp, objv[0], &myobjc,
 		    (Tcl_Obj ***) &objv) != TCL_OK) {
 		return TCL_ERROR;
-	    } else if (objc != 2) {
-                return TkpWrongNumberOfCoordinates(interp, 2, 2, objc);
+	    } else if (myobjc != 2) {
+                return TkpWrongNumberOfCoordinates(interp, 2, 2, myobjc);
 	    }
 	}
 	if ((Tk_PathCanvasGetCoordFromObj(interp, canvas, objv[0], &winItemPtr->x)
@@ -298,7 +300,7 @@ WinItemCoords(
 	}
 	ComputeWindowBbox(canvas, winItemPtr);
     } else {
-        return TkpWrongNumberOfCoordinates(interp, 0, 2, objc);
+        return TkpWrongNumberOfCoordinates(interp, 0, 2, myobjc);
     }
     return TCL_OK;
 }
@@ -546,8 +548,10 @@ ComputeWindowBbox(
 	x -= width/2;
 	y -= height/2;
 	break;
+#if TK_MAJOR_VERSION >= 9
     case TK_ANCHOR_NULL:
 	break;
+#endif
     }
 
     /*
@@ -609,7 +613,7 @@ DisplayWinItem(
      * A drawable of None is used by the canvas UnmapNotify handler
      * to indicate that we should no longer display ourselves.
      */
-    if (state == TK_PATHSTATE_HIDDEN || drawable == (Tcl_Size) NULL) {
+    if (state == TK_PATHSTATE_HIDDEN || drawable == None) {
 	if (canvasTkwin == Tk_Parent(winItemPtr->tkwin)) {
 	    Tk_UnmapWindow(winItemPtr->tkwin);
 	} else {
@@ -879,7 +883,9 @@ WinItemToPostscript(
     case TK_ANCHOR_SW:						    break;
     case TK_ANCHOR_W:			    y -= height/2.0;	    break;
     case TK_ANCHOR_CENTER:  x -= width/2.0; y -= height/2.0;	    break;
+#if TK_MAJOR_VERSION >= 9
     case TK_ANCHOR_NULL:                                            break;
+#endif
     }
 
     return CanvasPsWindow(interp, tkwin, canvas, x, y, width, height);
@@ -893,45 +899,44 @@ CanvasPsWindow(
     double x, double y,		/* origin of window. */
     int width, int height)	/* width/height of window. */
 {
-    char buffer[256];
     XImage *ximage;
     int result;
-    Tcl_DString buffer1, buffer2;
 #ifdef X_GetImage
     Tk_ErrorHandler handle;
 #endif
+    Tcl_Obj *cmdObj, *psObj;
+    Tcl_InterpState interpState = Tcl_SaveInterpState(interp, TCL_OK);
 
-    sprintf(buffer, "\n%%%% %s item (%s, %d x %d)\n%.15g %.15g translate\n",
+    /*
+     * Locate the subwindow within the wider window.
+     */
+
+    psObj = Tcl_ObjPrintf(
+	    "\n%%%% %s item (%s, %d x %d)\n"	/* Comment */
+	    "%.15g %.15g translate\n",		/* Position */
 	    Tk_Class(tkwin), Tk_PathName(tkwin), width, height, x, y);
-    Tcl_AppendResult(interp, buffer, NULL);
 
     /*
      * First try if the widget has its own "postscript" command. If it exists,
      * this will produce much better postscript than when a pixmap is used.
      */
 
-    Tcl_DStringInit(&buffer1);
-    Tcl_DStringInit(&buffer2);
-    Tcl_DStringGetResult(interp, &buffer2);
-    sprintf(buffer, "%s postscript -prolog 0\n", Tk_PathName(tkwin));
-    result = Tcl_Eval(interp, buffer);
-    Tcl_DStringGetResult(interp, &buffer1);
-    Tcl_DStringResult(interp, &buffer2);
-    Tcl_DStringFree(&buffer2);
+    Tcl_ResetResult(interp);
+    cmdObj = Tcl_ObjPrintf("%s postscript -prolog 0", Tk_PathName(tkwin));
+    Tcl_IncrRefCount(cmdObj);
+    result = Tcl_EvalObjEx(interp, cmdObj, 0);
+    Tcl_DecrRefCount(cmdObj);
 
     if (result == TCL_OK) {
-	Tcl_AppendResult(interp, "50 dict begin\nsave\ngsave\n", NULL);
-	sprintf(buffer, "0 %d moveto %d 0 rlineto 0 -%d rlineto -%d",
-		height, width, height, width);
-	Tcl_AppendResult(interp, buffer, NULL);
-	Tcl_AppendResult(interp, " 0 rlineto closepath\n",
+	Tcl_AppendPrintfToObj(psObj,
+		"50 dict begin\nsave\ngsave\n"
+		"0 %d moveto %d 0 rlineto 0 -%d rlineto -%d 0 rlineto closepath\n"
 		"1.000 1.000 1.000 setrgbcolor AdjustColor\nfill\ngrestore\n",
-		Tcl_DStringValue(&buffer1), "\nrestore\nend\n\n\n", NULL);
-	Tcl_DStringFree(&buffer1);
-
-	return result;
+		height, width, height, width);
+	Tcl_AppendObjToObj(psObj, Tcl_GetObjResult(interp));
+	Tcl_AppendToObj(psObj, "\nrestore\nend\n\n\n", -1);
+	goto done;
     }
-    Tcl_DStringFree(&buffer1);
 
     /*
      * If the window is off the screen it will generate a BadMatch/XError. We
@@ -956,13 +961,27 @@ CanvasPsWindow(
 #endif
 
     if (ximage == NULL) {
-	return TCL_OK;
-    }
-
+	result = TCL_OK;
+    } else {
+	Tcl_ResetResult(interp);
     result = TkPathPostscriptImage(interp, tkwin,
 	    ((TkPathCanvas *)canvas)->psInfo, ximage, 0, 0, width, height);
+	Tcl_AppendObjToObj(psObj, Tcl_GetObjResult(interp));
+	XDestroyImage(ximage);
+    }
 
-    XDestroyImage(ximage);
+    /*
+     * Plug the accumulated postscript back into the result.
+     */
+
+  done:
+    if (result == TCL_OK) {
+	(void) Tcl_RestoreInterpState(interp, interpState);
+	Tcl_AppendObjToObj(Tcl_GetObjResult(interp), psObj);
+    } else {
+	Tcl_DiscardInterpState(interpState);
+    }
+    Tcl_DecrRefCount(psObj);
     return result;
 }
 #endif
@@ -1124,7 +1143,6 @@ WinItemRequestProc(
  *--------------------------------------------------------------
  */
 
-	/* ARGSUSED */
 static void
 WinItemLostSlaveProc(
     ClientData clientData,	/* WindowItem structure for slave window that

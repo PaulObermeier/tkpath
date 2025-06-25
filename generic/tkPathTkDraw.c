@@ -349,9 +349,12 @@ TkPathTextFree(Tk_PathTextStyle *textStylePtr, void *custom)
 }
 
 PathRect
-TkPathTextMeasureBbox(Tk_PathTextStyle *textStylePtr, char *utf8, void *custom)
+TkPathTextMeasureBbox(Tk_PathTextStyle *textStylePtr, char *utf8, double *lineSpacing, void *custom)
 {
     PathRect r = {0, 0, 0, 0};
+    if (lineSpacing != NULL) {
+	*lineSpacing = 0;
+    }
     return r;
 }
 
@@ -524,6 +527,12 @@ TkPathPaintLinearGradient(TkPathContext ctx, PathRect *bbox, LinearGradientFill 
 void
 TkPathPaintRadialGradient(TkPathContext ctx, PathRect *bbox, RadialGradientFill *fillPtr, int fillRule, double fillOpacity, TMatrix *mPtr)
 {
+}
+
+int
+TkPathSetup(Tcl_Interp *interp)
+{
+    return TCL_OK;
 }
 
 /*

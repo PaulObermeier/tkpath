@@ -90,7 +90,7 @@ static Tk_OptionSpec optionSpecs[] = {
  * of procedures that can be invoked by generic item code.
  */
 
-Tk_PathItemType tkPlineType = {
+Tk_PathItemType tkpPlineType = {
     "pline",				/* name */
     sizeof(PlineItem),			/* itemSize */
     CreatePline,			/* createProc */
@@ -115,6 +115,7 @@ Tk_PathItemType tkPlineType = {
     (Tk_PathItemInsertProc *) NULL,	/* insertProc */
     (Tk_PathItemDCharsProc *) NULL,	/* dTextProc */
     (Tk_PathItemType *) NULL,		/* nextPtr */
+    1,					/* isPathType */
 };
 
 static int
@@ -356,14 +357,14 @@ DisplayPline(Tk_PathCanvas canvas, Tk_PathItem *itemPtr, Display *display, Drawa
 
     atomPtr = MakePathAtoms(plinePtr);
     style = TkPathCanvasInheritStyle(itemPtr, kPathMergeStyleNotFill);
-    TkPathDrawPath(Tk_PathCanvasTkwin(canvas), drawable, atomPtr, &style, &m, &r);
+    TkPathDrawPath(ContextOfCanvas(canvas), atomPtr, &style, &m, &r);
     TkPathFreeAtoms(atomPtr);
 
     /*
      * Display arrowheads, if they are wanted.
      */
-    DisplayArrow(canvas, drawable, &plinePtr->startarrow, &style, &m, &r);
-    DisplayArrow(canvas, drawable, &plinePtr->endarrow, &style, &m, &r);
+    DisplayArrow(canvas, &plinePtr->startarrow, &style, &m, &r);
+    DisplayArrow(canvas, &plinePtr->endarrow, &style, &m, &r);
 
     TkPathCanvasFreeInheritedStyle(&style);
 }

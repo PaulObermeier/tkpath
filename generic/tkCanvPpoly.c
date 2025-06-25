@@ -112,7 +112,7 @@ static Tk_OptionSpec optionSpecsPpolygon[] = {
  * of procedures that can be invoked by generic item code.
  */
 
-Tk_PathItemType tkPolylineType = {
+Tk_PathItemType tkpPolylineType = {
     "polyline",				/* name */
     sizeof(PpolyItem),			/* itemSize */
     CreatePolyline,			/* createProc */
@@ -137,9 +137,10 @@ Tk_PathItemType tkPolylineType = {
     (Tk_PathItemInsertProc *) NULL,	/* insertProc */
     (Tk_PathItemDCharsProc *) NULL,	/* dTextProc */
     (Tk_PathItemType *) NULL,		/* nextPtr */
+    1,					/* isPathType */
 };
 
-Tk_PathItemType tkPpolygonType = {
+Tk_PathItemType tkpPpolygonType = {
     "ppolygon",				/* name */
     sizeof(PpolyItem),			/* itemSize */
     CreatePpolygon,			/* createProc */
@@ -164,6 +165,7 @@ Tk_PathItemType tkPpolygonType = {
     (Tk_PathItemInsertProc *) NULL,	/* insertProc */
     (Tk_PathItemDCharsProc *) NULL,	/* dTextProc */
     (Tk_PathItemType *) NULL,		/* nextPtr */
+    1,					/* isPathType */
 };
 
 static int
@@ -261,9 +263,11 @@ PpolyCoords(Tcl_Interp *interp, Tk_PathCanvas canvas, Tk_PathItem *itemPtr,
             &(ppolyPtr->atomPtr), &len) != TCL_OK) {
         return TCL_ERROR;
     }
-    ppolyPtr->maxNumSegments = len;
-    ConfigureArrows(canvas, ppolyPtr);
-    ComputePpolyBbox(canvas, ppolyPtr);
+    if (objc > 0) {
+        ppolyPtr->maxNumSegments = len;
+        ConfigureArrows(canvas, ppolyPtr);
+        ComputePpolyBbox(canvas, ppolyPtr);
+    }
     return TCL_OK;
 }
 
@@ -431,15 +435,13 @@ DisplayPpoly(Tk_PathCanvas canvas, Tk_PathItem *itemPtr, Display *display,
     Tk_PathStyle style;
 
     style = TkPathCanvasInheritStyle(itemPtr, 0);
-    TkPathDrawPath(Tk_PathCanvasTkwin(canvas), drawable, ppolyPtr->atomPtr,
-	    &style, &m, &itemPtr->bbox);
+    TkPathDrawPath(ContextOfCanvas(canvas), ppolyPtr->atomPtr, &style,
+	    &m, &itemPtr->bbox);
     /*
      * Display arrowheads, if they are wanted.
      */
-    DisplayArrow(canvas, drawable, &ppolyPtr->startarrow, &style, &m,
-	    &itemPtr->bbox);
-    DisplayArrow(canvas, drawable, &ppolyPtr->endarrow, &style, &m,
-	    &itemPtr->bbox);
+    DisplayArrow(canvas, &ppolyPtr->startarrow, &style, &m, &itemPtr->bbox);
+    DisplayArrow(canvas, &ppolyPtr->endarrow, &style, &m, &itemPtr->bbox);
     TkPathCanvasFreeInheritedStyle(&style);
 }
 

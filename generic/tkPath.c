@@ -1216,6 +1216,7 @@ TkPathPdfArrow(
     if (arrow->arrowEnabled && arrow->arrowPointsPtr != NULL) {
 	Tcl_Obj *ret;
 
+	arrowStyle.matrixPtr = NULL;
 	if (arrow->arrowFillRatio > 0.0 && arrow->arrowLength != 0.0) {
 	    arrowStyle.strokeWidth = 0.0;
 	    fc.color = arrowStyle.strokeColor;
@@ -1261,7 +1262,7 @@ TkPathPdf(
     Tcl_Obj *mkobj = (objc > 1) ? objv[1] : NULL;
     Tcl_Obj *mkgrad = (objc > 2) ? objv[2] : NULL;
     Tcl_Obj *gsAlpha = NULL;
-    int myZ = 0, f = 0, s = 0, isLinear = 0;
+    int myZ = 0, f = 0, s = 0, isLinear = 0, i;
     TkPointsContext_ context;
     PathAtom *atomPtr;
     char *gradName = NULL;
@@ -1275,6 +1276,14 @@ TkPathPdf(
 	TkPathGradientMaster *gradientPtr =
 	    GetGradientMasterFromPathColor(stylePtr->fill);
 
+	if ((stylePtr->dashPtr != NULL) && (stylePtr->dashPtr->number > 0)) {
+	    Tcl_AppendToObj(ret, "q [ ", 4);
+	    for (i = 0; i < stylePtr->dashPtr->number; i++) {
+		TkPathPdfNumber(ret, 6, stylePtr->dashPtr->array[i], " ");
+	    }
+	    Tcl_AppendToObj(ret, "] ", 2);
+	    TkPathPdfNumber(ret, 6, stylePtr->offset, " d\n");
+	}
 	if (gradientPtr != NULL) {
 	    isLinear = (gradientPtr->type == kPathGradientTypeLinear);
 	}
@@ -1527,13 +1536,19 @@ again:
 	gsAlpha = NULL;
     }
     if (f && s) {
-	Tcl_AppendToObj(ret, "B\n", 2);
+	Tcl_AppendToObj(ret, (stylePtr->fillRule == EvenOddRule) ?
+			"B*\n" : "B\n", -1);
     } else if (f && !s) {
-	Tcl_AppendToObj(ret, "f\n", 2);
+	Tcl_AppendToObj(ret, (stylePtr->fillRule == EvenOddRule) ?
+			"f*\n" : "f\n", -1);
     } else if (s) {
 	Tcl_AppendToObj(ret, "S\n", 2);
     } else {
 	Tcl_AppendToObj(ret, "n\n", 2);
+    }
+    if ((stylePtr != NULL) && (stylePtr->dashPtr != NULL) &&
+	(stylePtr->dashPtr->number > 1)) {
+	Tcl_AppendToObj(ret, "Q\n", 2);
     }
     Tcl_SetObjResult(interp, ret);
     return TCL_OK;
@@ -2156,7 +2171,10 @@ PathPdfRadialGradient(
     TMatrix *tmPtr)
 {
     RadialTransition *tPtr = fillPtr->radialPtr;
-    double centerX, centerY, radiusX, radiusY, focalX, focalY, width, height;
+    double centerX, centerY, radiusX, focalX, focalY, width, height;
+#if 0
+    double radiusY;
+#endif
     GradientStop *stop0, *stop1;
     long id;
     Tcl_Obj *obj, *cmd;
@@ -2185,7 +2203,9 @@ PathPdfRadialGradient(
 	centerX = width * tPtr->centerX;
 	centerY = height * tPtr->centerY;
 	radiusX = width * tPtr->radius;
+#if 0
 	radiusY = height * tPtr->radius;
+#endif
 	focalX = width * tPtr->focalX;
 	focalY = height * tPtr->focalY;
 	if (tmPtr == NULL) {
@@ -2198,11 +2218,12 @@ PathPdfRadialGradient(
 	centerX = tPtr->centerX;
 	centerY = tPtr->centerY;
 	radiusX = tPtr->radius;
+#if 0
 	radiusY = tPtr->radius;
+#endif
 	focalX = tPtr->focalX;
 	focalY = tPtr->focalY;
     }
-    (void) radiusY; /* To avoid gcc unused warning but preserve for future mods */
     if (tmPtr != NULL) {
 	tmPtr->tx = bbox->x1;
 	tmPtr->ty = bbox->y1;

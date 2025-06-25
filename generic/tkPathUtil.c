@@ -30,7 +30,8 @@
  */
 
 void
-TkPathMakePrectAtoms(double *pointsPtr, double rx, double ry, PathAtom **atomPtrPtr)
+TkPathMakePrectAtoms(double *pointsPtr, double rx, double ry,
+                     int needPath, PathAtom **atomPtrPtr)
 {
     PathAtom *atomPtr = NULL;
     PathAtom *firstAtomPtr = NULL;
@@ -75,6 +76,19 @@ TkPathMakePrectAtoms(double *pointsPtr, double rx, double ry, PathAtom **atomPtr
         atomPtr = atomPtr->nextPtr;
         atomPtr->nextPtr = NewCloseAtom(x, y);
         *atomPtrPtr = firstAtomPtr;
+    } else if (needPath) {
+        atomPtr = NewMoveToAtom(x, y);
+        firstAtomPtr = atomPtr;
+        atomPtr->nextPtr = NewLineToAtom(x+width, y);
+        atomPtr = atomPtr->nextPtr;
+        atomPtr->nextPtr = NewLineToAtom(x+width, y+height);
+        atomPtr = atomPtr->nextPtr;
+        atomPtr->nextPtr = NewLineToAtom(x, y+height);
+        atomPtr = atomPtr->nextPtr;
+        atomPtr->nextPtr = NewLineToAtom(x, y);
+        atomPtr = atomPtr->nextPtr;
+        atomPtr->nextPtr = NewCloseAtom(x, y);
+        *atomPtrPtr = firstAtomPtr;
     } else {
         atomPtr = NewRectAtom(pointsPtr);
         *atomPtrPtr = atomPtr;
@@ -101,9 +115,7 @@ TkPathMakePrectAtoms(double *pointsPtr, double rx, double ry, PathAtom **atomPtr
 
 void
 TkPathDrawPath(
-    Tk_Window tkwin,        /* Tk window. */
-    Drawable drawable,      /* Pixmap or window in which to draw
-                             * item. */
+    TkPathContext context,  /* Context. */
     PathAtom *atomPtr,      /* The actual path as a linked list
                              * of PathAtoms. */
     Tk_PathStyle *stylePtr, /* The paths style. */
@@ -111,15 +123,12 @@ TkPathDrawPath(
     PathRect *bboxPtr)      /* The bare (untransformed) bounding box
                              * (assuming zero stroke width) */
 {
-    TkPathContext context;
-
     /*
      * Define the path in the drawable using the path drawing functions.
      * Any transform matrix need to be considered and canvas drawable
      * offset must always be taken into account. Note the order!
      */
 
-    context = TkPathInit(tkwin, drawable);
     if (mPtr != NULL) {
         TkPathPushTMatrix(context, mPtr);
     }
@@ -130,7 +139,6 @@ TkPathDrawPath(
         return;
     }
     TkPathPaintPath(context, atomPtr, stylePtr,	bboxPtr);
-    TkPathFree(context);
 }
 
 /*
@@ -1150,7 +1158,7 @@ DashConvertToFloats (
     int result = 0;
     int size;
 
-    if (n < 0) {
+    if ((int) n < 0) {
         n = strlen(p);
     }
     while (n-- && *p) {

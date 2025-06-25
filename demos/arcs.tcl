@@ -27,7 +27,6 @@ set ra [expr {$r+$a}]
 set a2 [expr {2*$r+$a}]
 
 proc tkp::circlepath {r} {
-    
     return [list M -6 -$a l -$b -$b M -6 -$a l -$b $b]
 }
 

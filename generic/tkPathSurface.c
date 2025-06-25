@@ -641,6 +641,7 @@ SurfaceCreateEllipse(Tcl_Interp *interp, InterpData *dataPtr,
     Tk_PathStyle	mergedStyle;
     int			result = TCL_OK;
 
+    memset(&ellipse, 0, sizeof(ellipse));
     ellipse.styleObj = NULL;
     i = GetFirstOptionIndex(objc, objv);
     TkPathInitStyle(style);
@@ -728,6 +729,7 @@ SurfaceCreatePath(Tcl_Interp *interp, InterpData *dataPtr,
     Tcl_Size 		len;
     int			result = TCL_OK;
 
+    memset(&item, 0, sizeof(item));
     item.styleObj = NULL;
     TkPathInitStyle(&item.style);
     TkPathArrowDescrInit(&item.startarrow);
@@ -812,8 +814,10 @@ SurfaceCreatePimage(Tcl_Interp *interp, InterpData *dataPtr,
     int			i;
     int			result = TCL_OK;
 
+    memset(&item, 0, sizeof(item));
     item.imageName = NULL;
     item.matrixPtr = NULL;
+    item.styleObj = NULL;
     TkPathInitStyle(&style);
     i = GetFirstOptionIndex(objc, objv);
     if (GetPointCoords(interp, point, i-3, objv+3) != TCL_OK) {
@@ -877,6 +881,7 @@ SurfaceCreatePline(Tcl_Interp *interp, InterpData *dataPtr,
     PathPoint		pf, pl, newp;
     int			result = TCL_OK;
 
+    memset(&item, 0, sizeof(item));
     item.styleObj = NULL;
     i = GetFirstOptionIndex(objc, objv);
     TkPathInitStyle(&item.style);
@@ -968,6 +973,7 @@ SurfaceCreatePpoly(Tcl_Interp* interp, InterpData *dataPtr,
     PathAtom 		*atomPtr = NULL;
     int			result = TCL_OK;
 
+    memset(&item, 0, sizeof(item));
     item.styleObj = NULL;
     i = GetFirstOptionIndex(objc, objv);
     TkPathInitStyle(style);
@@ -1054,6 +1060,7 @@ SurfaceCreatePrect(Tcl_Interp *interp, InterpData *dataPtr,
     double		points[4];
     int			result = TCL_OK;
 
+    memset(&prect, 0, sizeof(prect));
     prect.styleObj = NULL;
     i = GetFirstOptionIndex(objc, objv);
     TkPathInitStyle(style);
@@ -1084,7 +1091,7 @@ SurfaceCreatePrect(Tcl_Interp *interp, InterpData *dataPtr,
     prect.ry = MAX(0.0, prect.ry);
     TkPathSaveState(context);
     TkPathPushTMatrix(context, mergedStyle.matrixPtr);
-    TkPathMakePrectAtoms(points, prect.rx, prect.ry, &atomPtr);
+    TkPathMakePrectAtoms(points, prect.rx, prect.ry, 0, &atomPtr);
     if (TkPathMakePath(context, atomPtr, &mergedStyle) != TCL_OK) {
 	TkPathRestoreState(context);
 	result = TCL_ERROR;
@@ -1173,6 +1180,7 @@ SurfaceCreatePtext(Tcl_Interp *interp, InterpData *dataPtr,
 	Tcl_SetObjResult(interp, Tcl_NewStringObj("no main window", -1));
 	return TCL_ERROR;
     }
+    memset(&item, 0, sizeof(item));
     item.styleObj = NULL;
     item.textAnchor = kPathTextAnchorStart;
     item.utf8 = NULL;
@@ -1207,7 +1215,7 @@ SurfaceCreatePtext(Tcl_Interp *interp, InterpData *dataPtr,
 	goto bail;
     }
     r = TkPathTextMeasureBbox(Tk_Display(dataPtr->tkwin), &item.textStyle,
-			      item.utf8, custom);
+			      item.utf8, NULL, custom);
     width = r.x2 - r.x1;
     height = r.y2 - r.y1;
     bheight = r.y2 + mergedStyle.strokeWidth;

@@ -543,8 +543,10 @@ TkPathCanvasInheritTMatrix(Tk_PathItem *itemPtr)
     return matrix;
 }
 
-/* TkPathCanvasGradientTable etc.: this is just accessor functions to hide
-   the internals of the TkPathCanvas */
+/*
+ * TkPathCanvasGradientTable etc.: this is just accessor functions to hide
+ * the internals of the TkPathCanvas
+ */
 
 Tcl_HashTable *
 TkPathCanvasGradientTable(Tk_PathCanvas canvas)
@@ -1202,7 +1204,7 @@ FindSmoothMethod(Tcl_Interp *interp,
     }
 
     /*
-     * Backward compatability hack.
+     * Backward compatibility hack.
      */
 
     if (strncmp(value, "bezier", length) == 0) {
@@ -1357,9 +1359,9 @@ Tk_PathCreateOutline(
     outline->color = NULL;
     outline->activeColor = NULL;
     outline->disabledColor = NULL;
-    outline->stipple = (Tcl_Size) NULL;
-    outline->activeStipple = (Tcl_Size) NULL;
-    outline->disabledStipple = (Tcl_Size) NULL;
+    outline->stipple = None;
+    outline->activeStipple = None;
+    outline->disabledStipple = None;
 }
 
 /*
@@ -1402,17 +1404,17 @@ Tk_PathDeleteOutline(
 	Tk_FreeColor(outline->disabledColor);
         outline->disabledColor = NULL;
     }
-    if (outline->stipple != (Tcl_Size) NULL) {
+    if (outline->stipple != None) {
 	Tk_FreeBitmap(display, outline->stipple);
-        outline->stipple = (Tcl_Size) NULL;
+        outline->stipple = None;
     }
-    if (outline->activeStipple != (Tcl_Size) NULL) {
+    if (outline->activeStipple != None) {
 	Tk_FreeBitmap(display, outline->activeStipple);
-        outline->activeStipple = (Tcl_Size) NULL;
+        outline->activeStipple = None;
     }
-    if (outline->disabledStipple != (Tcl_Size) NULL) {
+    if (outline->disabledStipple != None) {
 	Tk_FreeBitmap(display, outline->disabledStipple);
-        outline->disabledStipple = (Tcl_Size) NULL;
+        outline->disabledStipple = None;
     }
 }
 
@@ -1483,7 +1485,7 @@ Tk_PathConfigOutlineGC(
 	if (outline->activeColor!=NULL) {
 	    color = outline->activeColor;
 	}
-	if (outline->activeStipple!=(Tcl_Size) NULL) {
+	if (outline->activeStipple!=None) {
 	    stipple = outline->activeStipple;
 	}
     } else if (state == TK_PATHSTATE_DISABLED) {
@@ -1496,7 +1498,7 @@ Tk_PathConfigOutlineGC(
 	if (outline->disabledColor!=NULL) {
 	    color = outline->disabledColor;
 	}
-	if (outline->disabledStipple!=(Tcl_Size) NULL) {
+	if (outline->disabledStipple!=None) {
 	    stipple = outline->disabledStipple;
 	}
     }
@@ -1509,7 +1511,7 @@ Tk_PathConfigOutlineGC(
     if (color != NULL) {
 	gcValues->foreground = color->pixel;
 	mask = GCForeground|GCLineWidth;
-	if (stipple != (Tcl_Size) NULL) {
+	if (stipple != None) {
 	    gcValues->stipple = stipple;
 	    gcValues->fill_style = FillStippled;
 	    mask |= GCStipple|GCFillStyle;
@@ -1581,7 +1583,7 @@ Tk_PathChangeOutlineGC(
 	if (outline->activeColor != NULL) {
 	    color = outline->activeColor;
 	}
-	if (outline->activeStipple != (Tcl_Size) NULL) {
+	if (outline->activeStipple != None) {
 	    stipple = outline->activeStipple;
 	}
     } else if (state == TK_PATHSTATE_DISABLED) {
@@ -1594,7 +1596,7 @@ Tk_PathChangeOutlineGC(
 	if (outline->disabledColor != NULL) {
 	    color = outline->disabledColor;
 	}
-	if (outline->disabledStipple != (Tcl_Size) NULL) {
+	if (outline->disabledStipple != None) {
 	    stipple = outline->disabledStipple;
 	}
     }
@@ -1621,7 +1623,7 @@ Tk_PathChangeOutlineGC(
 		    outline->offset, p, dashPtr->number);
 	}
     }
-    if (stipple != (Tcl_Size) NULL) {
+    if (stipple != None) {
 	int w=0; int h=0;
 	Tk_TSOffset *tsoffset = outline->tsoffsetPtr;
 	int flags = tsoffset->flags;
@@ -1701,7 +1703,7 @@ Tk_PathResetOutlineGC(
 	if (outline->activeColor != NULL) {
 	    color = outline->activeColor;
 	}
-	if (outline->activeStipple != (Tcl_Size) NULL) {
+	if (outline->activeStipple != None) {
 	    stipple = outline->activeStipple;
 	}
     } else if (state == TK_PATHSTATE_DISABLED) {
@@ -1714,7 +1716,7 @@ Tk_PathResetOutlineGC(
 	if (outline->disabledColor != NULL) {
 	    color = outline->disabledColor;
 	}
-	if (outline->disabledStipple != (Tcl_Size) NULL) {
+	if (outline->disabledStipple != None) {
 	    stipple = outline->disabledStipple;
 	}
     }
@@ -1737,7 +1739,7 @@ Tk_PathResetOutlineGC(
 		    outline->offset, &dashList , 1);
 	}
     }
-    if (stipple != (Tcl_Size) NULL) {
+    if (stipple != None) {
 	XSetTSOrigin(((TkPathCanvas *)canvas)->display, outline->gc, 0, 0);
 	return 1;
     }
@@ -1800,7 +1802,7 @@ Tk_PathCanvasPsOutline(
 	if (outline->activeColor != NULL) {
 	    color = outline->activeColor;
 	}
-	if (outline->activeStipple != (Tcl_Size) NULL) {
+	if (outline->activeStipple != None) {
 	    stipple = outline->activeStipple;
 	}
     } else if (state == TK_PATHSTATE_DISABLED) {
@@ -1813,7 +1815,7 @@ Tk_PathCanvasPsOutline(
 	if (outline->disabledColor != NULL) {
 	    color = outline->disabledColor;
 	}
-	if (outline->disabledStipple != (Tcl_Size) NULL) {
+	if (outline->disabledStipple != None) {
 	    stipple = outline->disabledStipple;
 	}
     }
@@ -1873,7 +1875,7 @@ Tk_PathCanvasPsOutline(
     if (Tk_PathCanvasPsColor(interp, canvas, color) != TCL_OK) {
 	return TCL_ERROR;
     }
-    if (stipple != (Tcl_Size) NULL) {
+    if (stipple != None) {
 	Tcl_AppendResult(interp, "StrokeClip ", NULL);
 	if (Tk_PathCanvasPsStipple(interp, canvas, stipple) != TCL_OK) {
 	    return TCL_ERROR;
@@ -2056,10 +2058,8 @@ TkPathCanvTranslatePath(
     double *a, *b, *t;		/* Pointers to parts of the temporary
 				 * storage */
     int i, j;			/* Loop counters */
-#ifndef NDEBUG
     int maxOutput;		/* Maximum number of outputs that we will
 				 * allow */
-#endif
     double limit[4];		/* Boundries at which clipping occurs */
     double staticSpace[480];	/* Temp space from the stack */
 
@@ -2154,9 +2154,7 @@ TkPathCanvTranslatePath(
      * This is the loop that makes the four passes through the data.
      */
 
-#ifndef NDEBUG
     maxOutput = numVertex*3;
-#endif
     for (j=0; j<4; j++){
 	double xClip = limit[j];
 	int inside = a[0]<xClip;
@@ -2194,7 +2192,7 @@ TkPathCanvTranslatePath(
 		    b[numOutput*2] = -yN;
 		    b[numOutput*2+1] = xClip;
 		    numOutput++;
-		    assert(numOutput <= maxOutput);
+		    if (numOutput > maxOutput) assert(0);
 		    priorY = yN;
 		    inside = 0;
 		} else if (i == 0) {

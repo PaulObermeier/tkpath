@@ -26,6 +26,7 @@ typedef struct PtextItem  {
     double x;
     double y;
     double baseHeightRatio;
+    double lineSpacing;
     Tcl_Obj *utf8Obj;		/* The actual text to display; UTF-8 */
     int numChars;		/* Length of text in characters. */
     int numBytes;		/* Length of text in bytes. */
@@ -198,7 +199,7 @@ static Tk_OptionSpec optionSpecs[] = {
  * of procedures that can be invoked by generic item code.
  */
 
-Tk_PathItemType tkPtextType = {
+Tk_PathItemType tkpPtextType = {
     "ptext",				/* name */
     sizeof(PtextItem),			/* itemSize */
     CreatePtext,			/* createProc */
@@ -223,6 +224,7 @@ Tk_PathItemType tkPtextType = {
     (Tk_PathItemInsertProc *) NULL,	/* insertProc */
     (Tk_PathItemDCharsProc *) NULL,	/* dTextProc */
     (Tk_PathItemType *) NULL,		/* nextPtr */
+    1,					/* isPathType */
 };
 
 static int
@@ -349,6 +351,7 @@ ComputePtextBbox(Tk_PathCanvas canvas, PtextItem *ptextPtr)
     double width;
     double height;
     double bheight;
+    double lineSpacing;
     PathRect bbox, r;
 
     if (state == TK_PATHSTATE_NULL) {
@@ -361,7 +364,8 @@ ComputePtextBbox(Tk_PathCanvas canvas, PtextItem *ptextPtr)
     }
     style = TkPathCanvasInheritStyle(itemPtr, kPathMergeStyleNotFill);
     r = TkPathTextMeasureBbox(Tk_Display(tkwin), &ptextPtr->textStyle,
-	    Tcl_GetString(ptextPtr->utf8Obj), ptextPtr->custom);
+	    Tcl_GetString(ptextPtr->utf8Obj), &lineSpacing,
+	    ptextPtr->custom);
     width = r.x2 - r.x1;
     height = r.y2 - r.y1;
     bheight = -r.y1;
@@ -439,6 +443,7 @@ ComputePtextBbox(Tk_PathCanvas canvas, PtextItem *ptextPtr)
     }
     itemPtr->bbox = bbox;
     ptextPtr->baseHeightRatio = bheight / height;
+    ptextPtr->lineSpacing = lineSpacing;
     itemPtr->totalBbox = itemPtr->bbox;    /* FIXME */
     SetGenericPathHeaderBbox(&itemExPtr->header, style.matrixPtr, &bbox);
     TkPathCanvasFreeInheritedStyle(&style);
@@ -482,6 +487,7 @@ ConfigurePtext(Tcl_Interp *interp, Tk_PathCanvas canvas, Tk_PathItem *itemPtr,
 	if (ptextPtr->utf8Obj != NULL) {
 	    void *custom = NULL;
 
+	    ptextPtr->textStyle.fontSize = fabs(ptextPtr->textStyle.fontSize);
 	    if (TkPathTextConfig(interp, &ptextPtr->textStyle,
 		    Tcl_GetString(ptextPtr->utf8Obj), &custom) != TCL_OK) {
 		continue;
@@ -565,7 +571,7 @@ DisplayPtext(Tk_PathCanvas canvas, Tk_PathItem *itemPtr, Display *display,
 	style.strokeColor = itemExPtr->style.strokeColor;
     }
 
-    ctx = TkPathInit(Tk_PathCanvasTkwin(canvas), drawable);
+    ctx = ContextOfCanvas(canvas);
     TkPathPushTMatrix(ctx, &m);
     if (style.matrixPtr != NULL) {
         TkPathPushTMatrix(ctx, style.matrixPtr);
@@ -581,7 +587,6 @@ DisplayPtext(Tk_PathCanvas canvas, Tk_PathItem *itemPtr, Display *display,
 		   ptextPtr->fillOverStroke,
 		   Tcl_GetString(ptextPtr->utf8Obj), ptextPtr->custom);
     TkPathEndPath(ctx);
-    TkPathFree(ctx);
     TkPathCanvasFreeInheritedStyle(&style);
 }
 
@@ -757,6 +762,7 @@ PtextToPdf(Tcl_Interp *interp, Tk_PathCanvas canvas, Tk_PathItem *itemPtr,
     }
     tmp.tx = bbox.x1; /* value with anchoring applied */
     tmp.ty = ptextPtr->y; /* TODO */
+    tmp.ty = bbox.y1 + ptextPtr->baseHeightRatio * (bbox.y2 - bbox.y1);
     MMulTMatrix(&tmp, &matrix);
     /*
      * The defaults for -fill and -stroke differ for the ptext item.
@@ -811,11 +817,10 @@ PtextToPdf(Tcl_Interp *interp, Tk_PathCanvas canvas, Tk_PathItem *itemPtr,
     font = (objc > 2) ? Tcl_GetString(objv[2]) : ptextPtr->textStyle.fontFamily;
     /*
      * TODO: ptextPtr->textStyle.fontSlant ptextPtr->textStyle.fontWeight
-     * TODO: extents+descents
      */
     Tcl_AppendPrintfToObj(ret, "q\nBT\n/%s ", font);
     TkPathPdfNumber(ret, 3, ptextPtr->textStyle.fontSize, " Tf\n");
-    TkPathPdfNumber(ret, 3, ptextPtr->textStyle.fontSize, " TL\n");
+    TkPathPdfNumber(ret, 3, ptextPtr->lineSpacing, " TL\n");
     TkPathPdfNumber(ret, 6, matrix.a, " ");
     TkPathPdfNumber(ret, 6, matrix.b, " ");
     TkPathPdfNumber(ret, 6, matrix.c, " ");

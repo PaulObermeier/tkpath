@@ -975,11 +975,14 @@ GenericPathToArea(
     if (state == TK_PATHSTATE_HIDDEN) {
         return -1;
     }
-    if ((GetColorFromPathColor(stylePtr->fill) == NULL) && (stylePtr->strokeColor == NULL)) {
-        return -1;
-    }
     if (atomPtr == NULL) {
         return -1;
+    }
+    if ((GetColorFromPathColor(stylePtr->fill) == NULL) &&
+        (stylePtr->strokeColor == NULL)) {
+        if (GetGradientMasterFromPathColor(stylePtr->fill) == NULL) {
+        return -1;
+        }
     }
 
     /*
@@ -1874,13 +1877,12 @@ ScalePathAtoms(
 TMatrix
 GetCanvasTMatrix(Tk_PathCanvas canvas)
 {
-    short originX, originY;
     TMatrix m = kPathUnitTMatrix;
+    TkPathCanvas *canvasPtr = (TkPathCanvas *) canvas;
 
     /* @@@ Any scaling involved as well??? */
-    Tk_PathCanvasDrawableCoords(canvas, 0.0, 0.0, &originX, &originY);
-    m.tx = originX;
-    m.ty = originY;
+    m.tx = -canvasPtr->drawableXOrigin;
+    m.ty = -canvasPtr->drawableYOrigin;
     return m;
 }
 
@@ -2714,7 +2716,7 @@ PathGradientChangedProc(ClientData clientData, int flags)
 	    Tcl_DecrRefCount(stylePtr->fillObj);
 	    stylePtr->fillObj = NULL;
 	}
-	if (itemPtr->typePtr == &tkGroupType) {
+	if (itemPtr->typePtr == &tkpGroupType) {
 	    GroupItemConfigured(itemExPtr->canvas, itemPtr,
 		    PATH_STYLE_OPTION_FILL);
 	} else {
@@ -2738,7 +2740,7 @@ PathStyleChangedProc(ClientData clientData, int flags)
 	    Tcl_DecrRefCount(itemExPtr->styleObj);
 	    itemExPtr->styleObj = NULL;
 	}
-	if (itemPtr->typePtr == &tkGroupType) {
+	if (itemPtr->typePtr == &tkpGroupType) {
 	    GroupItemConfigured(itemExPtr->canvas, itemPtr,
 		    PATH_CORE_OPTION_STYLENAME);
 	    /* Not completely correct... */
