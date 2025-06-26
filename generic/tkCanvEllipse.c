@@ -181,6 +181,7 @@ Tk_PathItemType tkpEllipseType = {
     (Tk_PathItemInsertProc *) NULL,	/* insertProc */
     (Tk_PathItemDCharsProc *) NULL,	/* dTextProc */
     (Tk_PathItemType *) NULL,		/* nextPtr */
+    1,					/* isPathType */
 };
 
 static int
