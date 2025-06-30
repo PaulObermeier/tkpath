@@ -8,6 +8,7 @@
  *
  */
 
+#include "tkMacOSXPrivate.h"
 #include "tkMacOSXInt.h"
 #include "tkIntPath.h"
 
@@ -110,7 +111,7 @@ TkMacOSXDrawableView(MacDrawable *macWin)
         result = macWin->toplevel->view;
     } else {
 #if TK_MAJOR_VERSION >= 9
-        Tk_Window contWinPtr = Tk_GetOtherWindow(macWin->toplevel->winPtr);
+        Tk_Window contWinPtr = Tk_GetOtherWindow((Tk_Window) macWin->toplevel->winPtr);
 #else
         TkWindow *contWinPtr = TkpGetOtherWindow(macWin->toplevel->winPtr);
 #endif
@@ -230,8 +231,10 @@ PathSetUpCGContext(Drawable d, TkPathContext_ *context)
         goto end;
     }
 
-    NSView *view = TkMacOSXDrawableView(macDraw);
+    TKContentView *view = (TKContentView *) TkMacOSXDrawableView(macDraw);
     if (view) {
+
+#if TK_MAJOR_VERSION < 9
         NSView *fView = [NSView focusView];
 
         if (view != fView) {
@@ -244,11 +247,16 @@ PathSetUpCGContext(Drawable d, TkPathContext_ *context)
         [[view window] disableFlushWindow];
 	context->view = view;
         NSGraphicsContext *currentGraphicsContext = [NSGraphicsContext currentContext];
-	context->c = (CGContextRef)[currentGraphicsContext graphicsPort];
+	context->c = (CGContextRef)[currentGraphicsContext CGContext];
 	context->portBounds = NSRectToCGRect([view bounds]);
 	if (context->clipRgn) {
 	    /* ??? */
 	}
+#else
+	context->view = view;
+	context->c = view.tkLayerBitmapContext;
+	context->portBounds = NSRectToCGRect([view bounds]);
+#endif	
     } else if (macDraw && (macDraw->flags & TK_IS_PIXMAP)) {
 	CGRect bounds = CGRectMake(0, 0, macDraw->size.width, macDraw->size.height);
 	context->portBounds = bounds;
@@ -292,7 +300,9 @@ PathReleaseCGContext(TkPathContext_ *context)
 	CGContextSynchronize(context->c);
 	if (context->view) {
 	    [[context->view window] setViewsNeedDisplay:YES];
+#if TK_MAJOR_VERSION < 9
 	    [[context->view window] enableFlushWindow];
+#endif
         }
 	while (context->saveCount > 0) {
 	    CGContextRestoreGState(context->c);

@@ -3136,7 +3136,7 @@ DisplayCanvas(
     Tk_PathItem *itemPtr;
     Pixmap pixmap;
     int screenX1, screenX2, screenY1, screenY2, width, height;
-    int pmWidth, pmHeight, flags;
+    int flags;
 
     if (canvasPtr->flags & CANVAS_DELETED) {
 	return;
