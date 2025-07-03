@@ -649,7 +649,7 @@ ComputeTextBbox(
     TextItem *textPtr)		/* Item whose bbox is to be recomputed. */
 {
     Tk_PathCanvasTextInfo *textInfoPtr;
-    int leftX, topY, width, height, fudge, i;
+    int width, height, fudge, i;
     Tk_PathState state = textPtr->header.state;
     double x[4], y[4], dx[4], dy[4], sinA, cosA, tmp;
 
@@ -671,8 +671,6 @@ ComputeTextBbox(
      * bounding box for the text item.
      */
 
-    leftX = ROUND(textPtr->x);
-    topY = ROUND(textPtr->y);
     for (i=0 ; i<4 ; i++) {
 	dx[i] = dy[i] = 0.0;
     }
@@ -685,7 +683,6 @@ ComputeTextBbox(
     case TK_ANCHOR_W:
     case TK_ANCHOR_CENTER:
     case TK_ANCHOR_E:
-	topY -= height / 2;
 	for (i=0 ; i<4 ; i++) {
 	    dy[i] = -height / 2;
 	}
@@ -694,7 +691,6 @@ ComputeTextBbox(
     case TK_ANCHOR_SW:
     case TK_ANCHOR_S:
     case TK_ANCHOR_SE:
-	topY -= height;
 	for (i=0 ; i<4 ; i++) {
 	    dy[i] = -height;
 	}
@@ -713,7 +709,6 @@ ComputeTextBbox(
     case TK_ANCHOR_N:
     case TK_ANCHOR_CENTER:
     case TK_ANCHOR_S:
-	leftX -= width / 2;
 	for (i=0 ; i<4 ; i++) {
 	    dx[i] = -width / 2;
 	}
@@ -722,7 +717,6 @@ ComputeTextBbox(
     case TK_ANCHOR_NE:
     case TK_ANCHOR_E:
     case TK_ANCHOR_SE:
-	leftX -= width;
 	for (i=0 ; i<4 ; i++) {
 	    dx[i] = -width;
 	}
