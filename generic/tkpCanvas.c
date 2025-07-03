@@ -3247,7 +3247,7 @@ DisplayCanvas(
 	 *    the characters that overlap the edge of the pixmap will be
 	 *    outside the area we care about.
 	 */
-
+        int pmWidth, pmHeight;
 #ifdef PLATFORM_SDL
 	canvasPtr->drawableXOrigin = screenX1;
 	canvasPtr->drawableYOrigin = screenY1;
