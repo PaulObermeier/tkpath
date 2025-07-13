@@ -319,6 +319,9 @@ PathC::DrawImage(Tk_PhotoHandle photo, float x, float y,
     Tk_PhotoGetImage(photo, &block);
     iwidth = block.width;
     iheight = block.height;
+    if ((iwidth == 0) || (iheight == 0)) {
+        return;
+    }
     stride = block.pitch;
     pitch = block.pitch;
 

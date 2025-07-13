@@ -840,14 +840,16 @@ SurfaceCreatePimage(Tcl_Interp *interp, InterpData *dataPtr,
 		Tcl_NewStringObj("no photo with the given name", -1));
 	    result = TCL_ERROR;
 	    goto bail;
-	 }
+	}
 	image = Tk_GetImage(interp, Tk_MainWindow(interp),
 			    item.imageName, NULL, (ClientData) NULL);
 	TkPathSaveState(context);
 	TkPathPushTMatrix(context, style.matrixPtr);
-	TkPathImage(context, image, photo, point[0], point[1],
-		    item.width, item.height, style.fillOpacity,
-		    NULL, 0.0, 99, NULL);
+	if ((item.width > 0) && (item.height > 0)) {
+	    TkPathImage(context, image, photo, point[0], point[1],
+			item.width, item.height, style.fillOpacity,
+			NULL, 0.0, 99, NULL);
+	}
 	Tk_FreeImage(image);
 	TkPathRestoreState(context);
     }

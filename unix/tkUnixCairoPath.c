@@ -351,6 +351,9 @@ TkPathImage(TkPathContext ctx, Tk_Image image, Tk_PhotoHandle photo,
     Tk_PhotoGetImage(photo, &block);
     iwidth = block.width;
     iheight = block.height;
+    if ((iwidth == 0) || (iheight == 0)) {
+	return;
+    }
     pitch = block.pitch;
     width = (width0 == 0.0) ? (double) iwidth : width0;
     height = (height0 == 0.0) ? (double) iheight : height0;

@@ -304,6 +304,9 @@ TkPathImage(TkPathContext ctx, Tk_Image image, Tk_PhotoHandle photo,
     }
     PathApplyTMatrix(context->m, &x, &y);
     Tk_SizeOfImage(image, &iwidth, &iheight);
+    if ((iwidth == 0) || (iheight == 0)) {
+	return;
+    }
     Tk_RedrawImage(image, 0, 0, iwidth, iheight, context->drawable, (int)x, (int)y);
 }
 
