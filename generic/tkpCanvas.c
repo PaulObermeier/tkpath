@@ -322,7 +322,6 @@ static Tk_ClassProcs canvasClass = {
     PathCanvasWorldChanged,	/* worldChangedProc */
 };
 
-
 /*
  * Macros that significantly simplify all code that finds items.
  */
