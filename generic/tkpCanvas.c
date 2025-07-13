@@ -3271,6 +3271,17 @@ DisplayCanvas(
 	Tk_ClipDrawableToRect(Tk_Display(tkwin), pixmap,
 		screenX1 - canvasPtr->xOrigin, screenY1 - canvasPtr->yOrigin,
 		width, height);
+	/*
+	 * Force an update of the clipping regions for all embedded windows,
+	 * to prevent "ghosts".
+	 */
+	for (itemPtr = canvasPtr->rootItemPtr; itemPtr != NULL;
+	    itemPtr = TkPathCanvasItemIteratorNext(itemPtr)) {
+	    if (strncmp(itemPtr->typePtr->name, "window", 6) == 0) {
+		itemPtr->typePtr->displayProc((Tk_PathCanvas)canvasPtr, itemPtr,
+		    canvasPtr->display, pixmap, screenX1, screenY1, width, height);
+	    }
+	}
 #else
 	TkpClipDrawableToRect(Tk_Display(tkwin), pixmap,
 		screenX1 - canvasPtr->xOrigin, screenY1 - canvasPtr->yOrigin,
