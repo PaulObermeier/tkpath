@@ -150,9 +150,9 @@ static Tk_OptionSpec optionSpecs[] = {
 	0, 0, 0},				/* Do not use TK_OPTION_NULL_OK
 						 * here since the text layout
 						 * goes crazy! */
-    {TK_OPTION_INT, "-underline", NULL, NULL,
-	"-1", -1, offsetof(TextItem, underline),
-	0, 0, 0},
+    {TK_OPTION_INDEX, "-underline", NULL, NULL,
+        "-1", TCL_INDEX_NONE, offsetof(TextItem, underline),
+        0, NULL, 0},
     {TK_OPTION_PIXELS, "-width", NULL, NULL,
         "0", -1, offsetof(TextItem, width), 0, 0, 0},
     {TK_OPTION_END, NULL, NULL, NULL,
