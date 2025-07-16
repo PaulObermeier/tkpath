@@ -38,7 +38,6 @@ typedef struct PimageItem  {
 			     * NULL means no image right now. */
     Tk_Image image;	    /* Image to display in window, or NULL if
                              * no image at present. */
-    Tk_PhotoHandle photo;
     double width;	    /* If 0 use natural width or height. */
     double height;
     Tk_Anchor anchor;       /* Where to anchor image relative to (x,y). */
@@ -269,7 +268,6 @@ CreatePimage(Tcl_Interp *interp, Tk_PathCanvas canvas,
     pimagePtr->matrixPtr = NULL;
     pimagePtr->imageObj = NULL;
     pimagePtr->image = NULL;
-    pimagePtr->photo = NULL;
     pimagePtr->height = 0;
     pimagePtr->width = 0;
     pimagePtr->anchor = TK_ANCHOR_NW;
@@ -539,13 +537,11 @@ ConfigurePimage(Tcl_Interp *interp, Tk_PathCanvas canvas, Tk_PathItem *itemPtr,
 		}
 	    } else {
 		image = NULL;
-		photo = NULL;
 	    }
 	    if (pimagePtr->image != NULL) {
 		Tk_FreeImage(pimagePtr->image);
 	    }
 	    pimagePtr->image = image;
-	    pimagePtr->photo = photo;
 	}
 
 	/*
@@ -594,18 +590,24 @@ DisplayPimage(Tk_PathCanvas canvas, Tk_PathItem *itemPtr, Display *display,
     PimageItem *pimagePtr = (PimageItem *) itemPtr;
     TMatrix m = GetCanvasTMatrix(canvas);
     TkPathContext ctx;
+    Tk_PhotoHandle photo;
 
     ctx = ContextOfCanvas(canvas);
     TkPathPushTMatrix(ctx, &m);
     m = GetTMatrix(pimagePtr);
     TkPathPushTMatrix(ctx, &m);
     /* @@@ Maybe we should taking care of x, y etc.? */
-    TkPathImage(ctx, pimagePtr->image, pimagePtr->photo,
+    photo = Tk_FindPhoto(((TkPathCanvas *)canvas)->interp,
+                         Tcl_GetString(pimagePtr->imageObj));
+    if (photo == NULL) {
+	Tcl_ResetResult(((TkPathCanvas *)canvas)->interp);
+	return;
+    }
+    TkPathImage(ctx, pimagePtr->image, photo,
             itemPtr->bbox.x1+BBOX_OUT, itemPtr->bbox.y1+BBOX_OUT,
             pimagePtr->width, pimagePtr->height, pimagePtr->fillOpacity,
             pimagePtr->tintColor, pimagePtr->tintAmount,
-	    pimagePtr->interpolation,
-            pimagePtr->srcRegionPtr);
+	    pimagePtr->interpolation, pimagePtr->srcRegionPtr);
 }
 
 static void
@@ -640,6 +642,7 @@ PimageToPdf(Tcl_Interp *interp, Tk_PathCanvas canvas, Tk_PathItem *itemPtr,
     Tcl_Obj *ret, *obj;
     TMatrix matrix = { 1., 0., 0., 1., 0., 0.};
     Tk_PathState state = itemPtr->state;
+    Tk_PhotoHandle photo;
     Tk_PhotoImageBlock block;
     int x, y;
     unsigned char *p;
@@ -649,10 +652,14 @@ PimageToPdf(Tcl_Interp *interp, Tk_PathCanvas canvas, Tk_PathItem *itemPtr,
     if (state == TK_PATHSTATE_NULL) {
 	state = TkPathCanvasState(canvas);
     }
-    if ((pimagePtr->photo == NULL) || (state == TK_PATHSTATE_HIDDEN)) {
+    photo = Tk_FindPhoto(interp, Tcl_GetString(pimagePtr->imageObj));
+    if (photo == NULL) {
+	Tcl_ResetResult(interp);
+    }
+    if ((photo == NULL) || (state == TK_PATHSTATE_HIDDEN)) {
 	return TCL_OK;	/* nothing to display */
     }
-    Tk_PhotoGetImage(pimagePtr->photo, &block);
+    Tk_PhotoGetImage(photo, &block);
     if ((block.width <= 0) || (block.height <= 0)) {
 	return TCL_OK;	/* nothing to display */
     }
