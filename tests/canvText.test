@@ -23,7 +23,7 @@ foreach test [list \
     [list -stipple gray50 gray50 xyz {bitmap "xyz" not defined}] \
     [list -tags {test a b c} {test a b c} {} {}] \
     [list -text xyz xyz {} {}] \
-    [list -underline 0 0 xyz {bad index "xyz": must be integer?[+-]integer?, end?[+-]integer?, or ""}] \
+    [list -underline 0 0 xyz [expr {[package vsatisfies $tk_version 9] ? {bad index "xyz": must be integer?[+-]integer?, end?[+-]integer?, or ""} : {expected integer but got "xyz"}}]] \
     [list -width 6 6 xyz [errMsgBadDistance "xyz"]] \
 ] {
     lassign $test name goodValue goodResult badValue badResult
